@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Budget Analysis System</title>
+
+<style>
+body{
+margin:0;
+font-family:Arial,sans-serif;
+background:#f4f6f9;
+transition:0.3s ease;
+}
+
+.container{
+width:90%;
+margin:auto;
+padding:20px;
+}
+
+.header{
+text-align:center;
+background:linear-gradient(45deg, #28a745, #218838);
+color:white;
+padding:25px;
+border-radius:0 0 25px 25px;
+}
+
+.card{
+background:white;
+padding:20px;
+margin-top:20px;
+border-radius:15px;
+box-shadow:0px 0px 10px lightgray;
+transition:0.3s;
+}
+
+.card:hover{
+transform:scale(1.01);
+box-shadow:0px 0px 15px gray;
+}
+
+.title{
+font-size:24px;
+font-weight:bold;
+text-align:center;
+margin-bottom:15px;
+color:#28a745;
+}
+
+.center{
+text-align:center;
+}
+
+input,select{
+width:100%;
+padding:12px;
+margin-top:10px;
+border-radius:10px;
+border:1px solid gray;
+box-sizing:border-box;
+}
+
+button{
+width:100%;
+padding:12px;
+margin-top:15px;
+background:#28a745;
+border:none;
+border-radius:10px;
+color:white;
+font-size:16px;
+cursor:pointer;
+}
+
+button:hover{
+background:#218838;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+}
+
+th{
+background:#28a745;
+color:white;
+padding:12px;
+}
+
+td{
+padding:10px;
+text-align:center;
+border-bottom:1px solid lightgray;
+}
+
+img{
+width:350px;
+margin:10px;
+border-radius:10px;
+}
+
+.action{
+text-decoration:none;
+font-size:20px;
+}
+
+.summary{
+line-height:35px;
+font-size:18px;
+}
+
+/* DASHBOARD BOX */
+.dashboard{
+background:#ffffff;
+padding:20px;
+border-radius:15px;
+margin-top:20px;
+text-align:center;
+box-shadow:0px 0px 10px lightgray;
+}
+
+/* DARK MODE */
+.dark{
+background:#121212;
+color:#f1f1f1;
+}
+
+.dark .card{
+background:#1e1e1e;
+color:white;
+}
+
+.dark .dashboard{
+background:#1e1e1e;
+color:white;
+}
+
+.dark input,
+.dark select{
+background:#2a2a2a;
+color:white;
+border:1px solid #444;
+}
+
+.dark table{
+color:white;
+}
+</style>
+</head>
+
+<body>
+
+<!-- HEADER -->
+<div class="header">
+<h1>💰 Budget Analysis System</h1>
+<p>Income | Expense | Analysis</p>
+<button onclick="toggleDark()">🌙 Dark Mode</button>
+</div>
+
+<div class="container">
+
+<!-- WELCOME -->
+<div class="card">
+<h2 class="center">👋 Welcome {{username}}</h2>
+<p class="center">Manage your expenses smartly</p>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dashboard">
+<h2>📊 Live Dashboard</h2>
+<h3>Total: {{total}}</h3>
+<h3>Income: {{income}}</h3>
+<h3>Expense: {{expense}}</h3>
+<h3>Balance: {{income - expense}}</h3>
+</div>
+
+<!-- ADD TRANSACTION -->
+<div class="card">
+<div class="title">➕ Add Transaction</div>
+
+<form method="POST">
+<input type="text" name="title" placeholder="Title" required>
+<input type="number" name="amount" placeholder="Amount" required>
+
+<select name="type">
+<option value="income">Income</option>
+<option value="expense">Expense</option>
+</select>
+
+<input type="text" name="category" placeholder="Category" required>
+<input type="date" name="date" required>
+
+<button type="submit">Add Transaction</button>
+</form>
+</div>
+
+<!-- CHARTS -->
+<div class="card">
+<div class="title">📈 Budget Charts</div>
+
+<div class="center">
+
+<img src="{{ url_for('static', filename='chart.png') }}?v={{ range(100000)|random }}">
+
+<img src="{{ url_for('static', filename='monthly_chart.png') }}?v={{ range(100000)|random }}">
+
+</div>
+</div>
+
+<!-- BUDGET LIMIT -->
+<div class="card">
+<div class="title">⚙ Budget Limit</div>
+
+<form action="/set_limit" method="POST">
+<input type="number" name="limit" placeholder="Enter Budget Limit" required>
+<button>Save Limit</button>
+</form>
+
+<br>
+<h3>Current Limit: {{budget_limit}}</h3>
+</div>
+
+<!-- SUMMARY -->
+<div class="card">
+<div class="title">📊 Summary</div>
+
+<div class="summary">
+<b>Total :</b> {{total}} <br>
+<b>Income :</b> {{income}} <br>
+<b>Expense :</b> {{expense}} <br>
+<b>Advice :</b> {{advice}} <br>
+<b>Warning :</b> {{warning}} <br>
+<b>Top Category :</b> {{top_category}} <br>
+<b>Progress :</b> {{progress}} %
+</div>
+</div>
+
+<!-- CHATBOT -->
+<div class="card">
+<div class="title">🤖 AI Chatbot</div>
+
+<input id="msg" placeholder="Ask income / expense / budget">
+<button onclick="sendMsg()">Send</button>
+
+<br><br>
+<h3 id="reply"></h3>
+</div>
+
+<!-- TABLE -->
+<div class="card">
+<div class="title">📋 Transactions</div>
+
+<table>
+<tr>
+<th>Title</th>
+<th>Amount</th>
+<th>Category</th>
+<th>Date</th>
+<th>Delete</th>
+</tr>
+
+{% for t in transactions %}
+<tr>
+<td>{{t[2]}}</td>
+<td>{{t[3]}}</td>
+<td>{{t[4]}}</td>
+<td>{{t[5]}}</td>
+<td><a class="action" href="/delete/{{t[0]}}">❌</a></td>
+</tr>
+{% endfor %}
+
+</table>
+</div>
+
+<!-- BUTTONS -->
+<div class="card center">
+<a href="/download">⬇ Download CSV</a> |
+<a href="/pdf">📄 Download PDF</a> |
+<a href="/logout">🚪 Logout</a>
+</div>
+
+</div>
+
+<script>
+function toggleDark(){
+document.body.classList.toggle("dark");
+
+if(document.body.classList.contains("dark")){
+localStorage.setItem("mode","dark");
+}else{
+localStorage.setItem("mode","light");
+}
+}
+
+window.onload = function(){
+if(localStorage.getItem("mode") === "dark"){
+document.body.classList.add("dark");
+}
+}
+
+function sendMsg(){
+let msg = document.getElementById("msg").value;
+
+fetch("/chatbot", {
+method:"POST",
+headers:{
+"Content-Type":"application/x-www-form-urlencoded"
+},
+body:"message=" + msg
+})
+.then(res => res.json())
+.then(data => {
+document.getElementById("reply").innerHTML = data.reply;
+});
+}
+</script>
+
+</body>
+</html>

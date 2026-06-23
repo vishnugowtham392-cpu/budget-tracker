@@ -1,0 +1,185 @@
+body{
+margin:0;
+font-family:Arial,sans-serif;
+background:#f4f6f9;
+transition:0.3s ease;
+}
+
+/* ================= CONTAINER ================= */
+.container{
+width:90%;
+margin:auto;
+padding:20px;
+}
+
+/* ================= HEADER ================= */
+.header{
+text-align:center;
+background:linear-gradient(45deg, #28a745, #218838);
+color:white;
+padding:25px;
+border-radius:0 0 25px 25px;
+}
+
+/* ================= CARDS ================= */
+.card{
+background:white;
+padding:20px;
+margin-top:20px;
+border-radius:15px;
+box-shadow:0px 0px 10px lightgray;
+transition:0.3s ease;
+}
+
+.card:hover{
+transform:scale(1.01);
+box-shadow:0px 0px 15px gray;
+}
+
+/* ================= TITLES ================= */
+.title{
+font-size:24px;
+font-weight:bold;
+text-align:center;
+margin-bottom:15px;
+color:#28a745;
+}
+
+/* ================= CENTER ================= */
+.center{
+text-align:center;
+}
+
+/* ================= INPUTS ================= */
+input,select{
+width:100%;
+padding:12px;
+margin-top:10px;
+border-radius:10px;
+border:1px solid gray;
+box-sizing:border-box;
+}
+
+/* ================= BUTTON ================= */
+button{
+width:100%;
+padding:12px;
+margin-top:15px;
+background:#28a745;
+border:none;
+border-radius:10px;
+color:white;
+font-size:16px;
+cursor:pointer;
+transition:0.3s;
+}
+
+button:hover{
+background:#218838;
+}
+
+/* ================= TABLE ================= */
+table{
+width:100%;
+border-collapse:collapse;
+}
+
+th{
+background:#28a745;
+color:white;
+padding:12px;
+}
+
+td{
+padding:10px;
+text-align:center;
+border-bottom:1px solid lightgray;
+}
+
+/* ================= IMAGES ================= */
+img{
+width:350px;
+margin:10px;
+border-radius:10px;
+}
+
+/* ================= ACTION ICON ================= */
+.action{
+text-decoration:none;
+font-size:20px;
+}
+
+/* ================= SUMMARY ================= */
+.summary{
+line-height:35px;
+font-size:18px;
+}
+
+/* ================= DASHBOARD BOX ================= */
+.dashboard{
+background:#ffffff;
+padding:20px;
+border-radius:15px;
+margin-top:20px;
+text-align:center;
+box-shadow:0px 0px 10px lightgray;
+}
+
+/* ================= DARK MODE ================= */
+.dark{
+background:#121212;
+color:#f1f1f1;
+}
+
+.dark .card{
+background:#1e1e1e;
+color:white;
+}
+
+.dark .dashboard{
+background:#1e1e1e;
+color:white;
+}
+
+.dark input,
+.dark select{
+background:#2a2a2a;
+color:white;
+border:1px solid #444;
+}
+
+.dark table{
+color:white;
+}
+
+/* ================= HEADER BUTTON ================= */
+.header button{
+width:auto;
+padding:10px 15px;
+margin-top:10px;
+border-radius:8px;
+background:#ffffff;
+color:#28a745;
+font-weight:bold;
+}
+
+.header button:hover{
+background:#f1f1f1;
+}
+
+/* ================= RESPONSIVE ================= */
+@media screen and (max-width: 768px){
+
+.container{
+width:100%;
+padding:10px;
+}
+
+img{
+width:100%;
+}
+
+button{
+font-size:14px;
+}
+}
