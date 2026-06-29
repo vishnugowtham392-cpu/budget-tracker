@@ -1,319 +1,461 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Budget Analysis System</title>
+    <title>Budget Analysis System</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            transition: 0.3s ease;
+        }
 
-<style>
-body{
-margin:0;
-font-family:Arial,sans-serif;
-background:#f4f6f9;
-transition:0.3s ease;
-}
+        .container {
+            width: 90%;
+            margin: auto;
+            padding: 20px;
+        }
 
-.container{
-width:90%;
-margin:auto;
-padding:20px;
-}
+        .header {
+            text-align: center;
+            background: linear-gradient(45deg, #28a745, #218838);
+            color: white;
+            padding: 25px;
+            border-radius: 0 0 25px 25px;
+        }
 
-.header{
-text-align:center;
-background:linear-gradient(45deg, #28a745, #218838);
-color:white;
-padding:25px;
-border-radius:0 0 25px 25px;
-}
+        .card {
+            background: white;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 15px;
+            box-shadow: 0px 0px 10px lightgray;
+            transition: 0.3s;
+        }
 
-.card{
-background:white;
-padding:20px;
-margin-top:20px;
-border-radius:15px;
-box-shadow:0px 0px 10px lightgray;
-transition:0.3s;
-}
+        .card:hover {
+            transform: scale(1.01);
+            box-shadow: 0px 0px 15px gray;
+        }
 
-.card:hover{
-transform:scale(1.01);
-box-shadow:0px 0px 15px gray;
-}
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 15px;
+            color: #28a745;
+        }
 
-.title{
-font-size:24px;
-font-weight:bold;
-text-align:center;
-margin-bottom:15px;
-color:#28a745;
-}
+        .center {
+            text-align: center;
+        }
 
-.center{
-text-align:center;
-}
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border-radius: 10px;
+            border: 1px solid gray;
+            box-sizing: border-box;
+        }
 
-input,select{
-width:100%;
-padding:12px;
-margin-top:10px;
-border-radius:10px;
-border:1px solid gray;
-box-sizing:border-box;
-}
+        input[type="file"] {
+            padding: 12px;
+            background: #f8f9fa;
+            border: 2px dashed #28a745;
+            cursor: pointer;
+        }
 
-button{
-width:100%;
-padding:12px;
-margin-top:15px;
-background:#28a745;
-border:none;
-border-radius:10px;
-color:white;
-font-size:16px;
-cursor:pointer;
-}
+        .dark input[type="file"] {
+            background: #2a2a2a;
+            border-color: #28a745;
+            color: #f1f1f1;
+        }
 
-button:hover{
-background:#218838;
-}
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            background: #28a745;
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
 
-table{
-width:100%;
-border-collapse:collapse;
-}
+        button:hover {
+            background: #218838;
+        }
 
-th{
-background:#28a745;
-color:white;
-padding:12px;
-}
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
 
-td{
-padding:10px;
-text-align:center;
-border-bottom:1px solid lightgray;
-}
+        th {
+            background: #28a745;
+            color: white;
+            padding: 12px;
+        }
 
-img{
-width:350px;
-margin:10px;
-border-radius:10px;
-}
+        td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid lightgray;
+        }
 
-.action{
-text-decoration:none;
-font-size:20px;
-}
+        img {
+            width: 350px;
+            margin: 10px;
+            border-radius: 10px;
+        }
 
-.summary{
-line-height:35px;
-font-size:18px;
-}
+        .action {
+            text-decoration: none;
+            font-size: 20px;
+        }
 
-/* DASHBOARD BOX */
-.dashboard{
-background:#ffffff;
-padding:20px;
-border-radius:15px;
-margin-top:20px;
-text-align:center;
-box-shadow:0px 0px 10px lightgray;
-}
+        .summary {
+            line-height: 35px;
+            font-size: 18px;
+        }
 
-/* DARK MODE */
-.dark{
-background:#121212;
-color:#f1f1f1;
-}
+        .suggestion-item {
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            font-size: 16px;
+            transition: 0.3s;
+        }
 
-.dark .card{
-background:#1e1e1e;
-color:white;
-}
+        .suggestion-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
 
-.dark .dashboard{
-background:#1e1e1e;
-color:white;
-}
+        .dark .suggestion-item {
+            background: #2a2a2a;
+            border-left-color: #28a745;
+        }
 
-.dark input,
-.dark select{
-background:#2a2a2a;
-color:white;
-border:1px solid #444;
-}
+        .dark .suggestion-item:hover {
+            background: #333333;
+        }
 
-.dark table{
-color:white;
-}
-</style>
+        .insight-text {
+            font-family: monospace;
+            font-size: 16px;
+            line-height: 2;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .dark .insight-text {
+            background: #2a2a2a;
+            border-left-color: #28a745;
+            color: #f1f1f1;
+        }
+
+        /* DASHBOARD BOX */
+        .dashboard {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 15px;
+            margin-top: 20px;
+            text-align: center;
+            box-shadow: 0px 0px 10px lightgray;
+        }
+
+        /* DARK MODE */
+        .dark {
+            background: #121212;
+            color: #f1f1f1;
+        }
+
+        .dark .card {
+            background: #1e1e1e;
+            color: white;
+        }
+
+        .dark .dashboard {
+            background: #1e1e1e;
+            color: white;
+        }
+
+        .dark input,
+        .dark select {
+            background: #2a2a2a;
+            color: white;
+            border: 1px solid #444;
+        }
+
+        .dark table {
+            color: white;
+        }
+
+        .dark th {
+            background: #1a5a2a;
+        }
+
+        .dark td {
+            border-bottom: 1px solid #444;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                width: 95%;
+                padding: 10px;
+            }
+            
+            img {
+                width: 100%;
+                max-width: 350px;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .suggestion-item {
+                font-size: 14px;
+                padding: 10px;
+            }
+
+            .insight-text {
+                font-size: 14px;
+                padding: 10px;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-<!-- HEADER -->
-<div class="header">
-<h1>💰 Budget Analysis System</h1>
-<p>Income | Expense | Analysis</p>
-<button onclick="toggleDark()">🌙 Dark Mode</button>
-</div>
+    <!-- HEADER -->
+    <div class="header">
+        <h1>💰 Budget Analysis System</h1>
+        <p>Income | Expense | Analysis</p>
+        <button onclick="toggleDark()" style="width: auto; padding: 10px 20px;">🌙 Dark Mode</button>
+    </div>
 
-<div class="container">
+    <div class="container">
 
-<!-- WELCOME -->
-<div class="card">
-<h2 class="center">👋 Welcome {{username}}</h2>
-<p class="center">Manage your expenses smartly</p>
-</div>
+        <!-- WELCOME -->
+        <div class="card">
+            <h2 class="center">👋 Welcome {{ username }}</h2>
+            <p class="center">Manage your expenses smartly</p>
+        </div>
 
-<!-- DASHBOARD -->
-<div class="dashboard">
-<h2>📊 Live Dashboard</h2>
-<h3>Total: {{total}}</h3>
-<h3>Income: {{income}}</h3>
-<h3>Expense: {{expense}}</h3>
-<h3>Balance: {{income - expense}}</h3>
-</div>
+        <!-- DASHBOARD -->
+        <div class="dashboard">
+            <h2>📊 Live Dashboard</h2>
+            <h3>Total: ₹{{ total }}</h3>
+            <h3>Income: ₹{{ income }}</h3>
+            <h3>Expense: ₹{{ expense }}</h3>
+            <h3>Balance: ₹{{ income - expense }}</h3>
+        </div>
 
-<!-- ADD TRANSACTION -->
-<div class="card">
-<div class="title">➕ Add Transaction</div>
+        <!-- ADD TRANSACTION -->
+        <div class="card">
+            <div class="title">➕ Add Transaction</div>
 
-<form method="POST">
-<input type="text" name="title" placeholder="Title" required>
-<input type="number" name="amount" placeholder="Amount" required>
+            <form method="POST">
+                <input type="text" name="title" placeholder="Title" required>
+                <input type="number" name="amount" placeholder="Amount" step="0.01" required>
 
-<select name="type">
-<option value="income">Income</option>
-<option value="expense">Expense</option>
-</select>
+                <select name="type" required>
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                </select>
 
-<input type="text" name="category" placeholder="Category" required>
-<input type="date" name="date" required>
+                <!-- CATEGORY DROPDOWN -->
+                <select name="category" required>
+                    <option value="">Select Category</option>
+                    <option value="Salary">Salary</option>
+                    <option value="Food">Food</option>
+                    <option value="Travel">Travel</option>
+                    <option value="Shopping">Shopping</option>
+                    <option value="Education">Education</option>
+                    <option value="Bills">Bills</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Medical">Medical</option>
+                    <option value="Other">Other</option>
+                </select>
 
-<button type="submit">Add Transaction</button>
-</form>
-</div>
+                <input type="text" name="item" placeholder="Item (Idly / Dosai / Petrol / Bus)" required>
+                <input type="date" name="date" required>
 
-<!-- CHARTS -->
-<div class="card">
-<div class="title">📈 Budget Charts</div>
+                <button type="submit">Add Transaction</button>
+            </form>
+        </div>
 
-<div class="center">
+        <!-- UPLOAD CSV -->
+        <div class="card">
+            <div class="title">📤 Upload CSV File</div>
+            <form action="/upload" method="POST" enctype="multipart/form-data">
+                <input type="file" name="file" accept=".csv" required>
+                <button type="submit">Upload & Analyze</button>
+            </form>
+            <p style="text-align: center; margin-top: 10px; font-size: 14px; color: #6c757d;">
+                Format: Title,Amount,Type,Category,Item,Date
+            </p>
+        </div>
 
-<img src="{{ url_for('static', filename='chart.png') }}?v={{ range(100000)|random }}">
+        <!-- CHARTS -->
+        <div class="card">
+            <div class="title">📈 Budget Charts</div>
 
-<img src="{{ url_for('static', filename='monthly_chart.png') }}?v={{ range(100000)|random }}">
+            <div class="center">
+                <img src="{{ url_for('static', filename='chart.png') }}?v={{ range(100000)|random }}" alt="Income vs Expense Chart">
+                <img src="{{ url_for('static', filename='monthly_chart.png') }}?v={{ range(100000)|random }}" alt="Monthly Expense Chart">
+            </div>
+        </div>
 
-</div>
-</div>
+        <!-- BUDGET LIMIT -->
+        <div class="card">
+            <div class="title">⚙ Budget Limit</div>
 
-<!-- BUDGET LIMIT -->
-<div class="card">
-<div class="title">⚙ Budget Limit</div>
+            <form action="/set_limit" method="POST">
+                <input type="number" name="limit" placeholder="Enter Budget Limit" required>
+                <button>Save Limit</button>
+            </form>
 
-<form action="/set_limit" method="POST">
-<input type="number" name="limit" placeholder="Enter Budget Limit" required>
-<button>Save Limit</button>
-</form>
+            <br>
+            <h3>Current Limit: ₹{{ budget_limit }}</h3>
+        </div>
 
-<br>
-<h3>Current Limit: {{budget_limit}}</h3>
-</div>
+        <!-- SUMMARY -->
+        <div class="card">
+            <div class="title">📊 Summary</div>
 
-<!-- SUMMARY -->
-<div class="card">
-<div class="title">📊 Summary</div>
+            <div class="summary">
+                <b>Total :</b> ₹{{ total }} <br>
+                <b>Income :</b> ₹{{ income }} <br>
+                <b>Expense :</b> ₹{{ expense }} <br>
+                <b>Advice :</b> {{ advice }} <br>
+                <b>Warning :</b> {{ warning }} <br>
+                <b>Top Category :</b> {{ top_category }} <br>
+                <b>Progress :</b> {{ progress }} %
+            </div>
+        </div>
 
-<div class="summary">
-<b>Total :</b> {{total}} <br>
-<b>Income :</b> {{income}} <br>
-<b>Expense :</b> {{expense}} <br>
-<b>Advice :</b> {{advice}} <br>
-<b>Warning :</b> {{warning}} <br>
-<b>Top Category :</b> {{top_category}} <br>
-<b>Progress :</b> {{progress}} %
-</div>
-</div>
+        <!-- SMART INSIGHTS -->
+        <div class="card">
+            <div class="title">🧠 Smart Insights</div>
+            <div class="insight-text">{{ insight | safe }}</div>
+        </div>
 
-<!-- CHATBOT -->
-<div class="card">
-<div class="title">🤖 AI Chatbot</div>
+        <!-- SMART SAVING SUGGESTIONS -->
+        <div class="card">
+            <div class="title">💡 Smart Saving Suggestions</div>
+            
+            {% for s in suggestions %}
+                <div class="suggestion-item">{{ s }}</div>
+            {% endfor %}
+        </div>
 
-<input id="msg" placeholder="Ask income / expense / budget">
-<button onclick="sendMsg()">Send</button>
+        <!-- CHATBOT -->
+        <div class="card">
+            <div class="title">🤖 AI Chatbot</div>
 
-<br><br>
-<h3 id="reply"></h3>
-</div>
+            <input id="msg" placeholder="Ask income / expense / budget">
+            <button onclick="sendMsg()">Send</button>
 
-<!-- TABLE -->
-<div class="card">
-<div class="title">📋 Transactions</div>
+            <br><br>
+            <h3 id="reply"></h3>
+        </div>
 
-<table>
-<tr>
-<th>Title</th>
-<th>Amount</th>
-<th>Category</th>
-<th>Date</th>
-<th>Delete</th>
-</tr>
+        <!-- TRANSACTION TABLE -->
+        <div class="card">
+            <div class="title">📋 Transactions</div>
 
-{% for t in transactions %}
-<tr>
-<td>{{t[2]}}</td>
-<td>{{t[3]}}</td>
-<td>{{t[4]}}</td>
-<td>{{t[5]}}</td>
-<td><a class="action" href="/delete/{{t[0]}}">❌</a></td>
-</tr>
-{% endfor %}
+            <table>
+                <tr>
+                    <th>Title</th>
+                    <th>Amount</th>
+                    <th>Category</th>
+                    <th>Item</th>
+                    <th>Date</th>
+                    <th>Delete</th>
+                </tr>
 
-</table>
-</div>
+                {% for t in transactions %}
+                <tr>
+                    <td>{{ t[2] }}</td>
+                    <td>₹{{ t[3] }}</td>
+                    <td>{{ t[5] }}</td>
+                    <td>{{ t[7] }}</td>
+                    <td>{{ t[6] }}</td>
+                    <td>
+                        <a class="action" href="/delete/{{ t[0] }}">
+                            ❌
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
 
-<!-- BUTTONS -->
-<div class="card center">
-<a href="/download">⬇ Download CSV</a> |
-<a href="/pdf">📄 Download PDF</a> |
-<a href="/logout">🚪 Logout</a>
-</div>
+            </table>
+        </div>
 
-</div>
+        <!-- BUTTONS -->
+        <div class="card center">
+            <a href="/download" style="text-decoration: none; color: #28a745; margin: 0 10px;">⬇ Download CSV</a> |
+            <a href="/pdf" style="text-decoration: none; color: #28a745; margin: 0 10px;">📄 Download PDF</a> |
+            <a href="/logout" style="text-decoration: none; color: #dc3545; margin: 0 10px;">🚪 Logout</a>
+        </div>
 
-<script>
-function toggleDark(){
-document.body.classList.toggle("dark");
+    </div>
 
-if(document.body.classList.contains("dark")){
-localStorage.setItem("mode","dark");
-}else{
-localStorage.setItem("mode","light");
-}
-}
+    <script>
+        function toggleDark() {
+            document.body.classList.toggle("dark");
 
-window.onload = function(){
-if(localStorage.getItem("mode") === "dark"){
-document.body.classList.add("dark");
-}
-}
+            if (document.body.classList.contains("dark")) {
+                localStorage.setItem("mode", "dark");
+            } else {
+                localStorage.setItem("mode", "light");
+            }
+        }
 
-function sendMsg(){
-let msg = document.getElementById("msg").value;
+        window.onload = function() {
+            if (localStorage.getItem("mode") === "dark") {
+                document.body.classList.add("dark");
+            }
+        }
 
-fetch("/chatbot", {
-method:"POST",
-headers:{
-"Content-Type":"application/x-www-form-urlencoded"
-},
-body:"message=" + msg
-})
-.then(res => res.json())
-.then(data => {
-document.getElementById("reply").innerHTML = data.reply;
-});
-}
-</script>
+        function sendMsg() {
+            let msg = document.getElementById("msg").value;
+
+            if (msg.trim() === "") {
+                document.getElementById("reply").innerHTML = "⚠️ Please enter a question";
+                return;
+            }
+
+            fetch("/chatbot", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: "message=" + encodeURIComponent(msg)
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("reply").innerHTML = data.reply;
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                document.getElementById("reply").innerHTML = "⚠️ Error connecting to chatbot";
+            });
+        }
+    </script>
 
 </body>
 </html>
