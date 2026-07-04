@@ -471,13 +471,14 @@
 
     <div class="container">
 
-        <!-- WELCOME -->
+        <!-- ================= WELCOME WITH PROFILE PHOTO ================= -->
         <div class="card">
             <div class="center">
-                {% if user_photo %}
+                {% if user_photo and user_photo != 'default.png' %}
                     <img src="{{ url_for('static', filename='uploads/' + user_photo) }}" 
                          alt="Profile Photo" 
-                         class="profile-photo">
+                         class="profile-photo"
+                         onerror="this.src='{{ url_for('static', filename='profiles/default.png') }}'">
                 {% else %}
                     <img src="{{ url_for('static', filename='profiles/default.png') }}" 
                          alt="Profile Photo" 
