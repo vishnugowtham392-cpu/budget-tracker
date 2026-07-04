@@ -1,3 +1,4 @@
+# ================= UPDATED IMPORTS =================
 from flask import Flask, render_template, request, redirect, Response, session, jsonify, flash
 import sqlite3
 import os
@@ -15,6 +16,9 @@ from collections import Counter, defaultdict
 app = Flask(__name__)
 app.secret_key = "budgettracker"
 
+# ================= UPLOAD SETTINGS =================
+app.config['UPLOAD_FOLDER'] = "static/uploads"
+
 # ================= EMAIL CONFIG =================
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
@@ -30,6 +34,7 @@ os.makedirs("database", exist_ok=True)
 os.makedirs("static", exist_ok=True)
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("static/profiles", exist_ok=True)  # For profile photos
+os.makedirs("static/uploads", exist_ok=True)   # For uploads
 
 # ================= DATABASE INIT =================
 def init_db():
@@ -161,7 +166,7 @@ def set_limit():
     budget_limit = int(request.form['limit'])
     return redirect('/')
 
-# ================= PROFILE SETTINGS =================
+# ================= PROFILE SETTINGS (UPDATED WITH PHOTO UPLOAD) =================
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
     if 'user' not in session:
@@ -176,20 +181,32 @@ def profile():
         email = request.form['email'].strip()
         password = request.form['password'].strip()
         
-        # Check if new username already exists (if changed)
-        if new_username != username:
-            cur.execute("SELECT username FROM users WHERE username=?", (new_username,))
-            if cur.fetchone():
-                conn.close()
-                return "Username already exists! Please choose another."
+        # Handle photo upload
+        photo = request.files.get('photo')
+        filename = None
         
-        cur.execute("""
-            UPDATE users
-            SET username=?,
-                email=?,
-                password=?
-            WHERE username=?
-        """, (new_username, email, password, username))
+        if photo and photo.filename != "":
+            filename = secure_filename(photo.filename)
+            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            
+            # Update with photo
+            cur.execute("""
+                UPDATE users
+                SET username=?,
+                    email=?,
+                    password=?,
+                    photo=?
+                WHERE username=?
+            """, (new_username, email, password, filename, username))
+        else:
+            # Update without photo
+            cur.execute("""
+                UPDATE users
+                SET username=?,
+                    email=?,
+                    password=?
+                WHERE username=?
+            """, (new_username, email, password, username))
         
         conn.commit()
         session['user'] = new_username
@@ -216,7 +233,7 @@ def upload():
         return "No file selected"
     
     filename = secure_filename(file.filename)
-    path = os.path.join("uploads", filename)
+    path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(path)
     
     conn = sqlite3.connect("database/budget.db")
@@ -560,5 +577,5 @@ def delete(id):
 
 # ================= RUN =================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)

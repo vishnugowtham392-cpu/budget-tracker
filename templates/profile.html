@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile Settings</title>
+    <title>Profile</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
         .profile-container {
@@ -48,6 +48,27 @@
             transform: scale(1.05);
         }
         
+        /* Dark mode support */
+        .dark .profile-container {
+            background: #1e1e1e;
+            color: #f1f1f1;
+        }
+        
+        .dark .profile-header h1 {
+            color: #66b3ff;
+        }
+        
+        .dark .profile-photo {
+            border-color: #66b3ff;
+        }
+        
+        .dark input,
+        .dark select {
+            background: #2a2a2a;
+            color: #f1f1f1;
+            border: 1px solid #444;
+        }
+        
         @media (max-width: 480px) {
             .profile-container {
                 margin: 20px;
@@ -59,19 +80,20 @@
 <body>
     <div class="profile-container">
         <div class="profile-header">
-            <img src="{{ url_for('static', filename='profiles/' + user[4] if user[4] else 'default.png') }}" 
+            <img src="{{ url_for('static', filename='uploads/' + user[4] if user[4] else 'default.png') }}" 
                  alt="Profile Photo" 
                  class="profile-photo">
             <h1>👤 Profile Settings</h1>
             <p>Update your account information</p>
         </div>
         
-        <form method="POST">
-            <input type="text" name="username" value="{{ user[1] }}" required>
-            <input type="email" name="email" value="{{ user[3] }}" required>
-            <input type="password" name="password" value="{{ user[2] }}" required>
+        <form method="POST" enctype="multipart/form-data">
+            <input type="text" name="username" value="{{ user[1] if user else '' }}" required>
+            <input type="email" name="email" value="{{ user[3] if user else '' }}" required>
+            <input type="password" name="password" value="{{ user[2] if user else '' }}" required>
+            <input type="file" name="photo" accept="image/*">
             
-            <button type="submit">Update Profile</button>
+            <button type="submit">Save Changes</button>
         </form>
         
         <div style="text-align: center; margin-top: 20px;">
