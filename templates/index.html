@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Budget Analysis System</title>
+    <link rel="stylesheet" href="/static/style.css">
     <style>
+        /* Keep minimal inline styles, move most to style.css */
         body {
             margin: 0;
             font-family: Arial, sans-serif;
@@ -66,12 +69,6 @@
             cursor: pointer;
         }
 
-        .dark input[type="file"] {
-            background: #2a2a2a;
-            border-color: #28a745;
-            color: #f1f1f1;
-        }
-
         button {
             width: 100%;
             padding: 12px;
@@ -82,6 +79,7 @@
             color: white;
             font-size: 16px;
             cursor: pointer;
+            transition: 0.3s;
         }
 
         button:hover {
@@ -136,15 +134,6 @@
             transform: translateX(5px);
         }
 
-        .dark .suggestion-item {
-            background: #2a2a2a;
-            border-left-color: #28a745;
-        }
-
-        .dark .suggestion-item:hover {
-            background: #333333;
-        }
-
         .insight-text {
             font-family: monospace;
             font-size: 16px;
@@ -157,13 +146,6 @@
             word-wrap: break-word;
         }
 
-        .dark .insight-text {
-            background: #2a2a2a;
-            border-left-color: #28a745;
-            color: #f1f1f1;
-        }
-
-        /* DASHBOARD BOX */
         .dashboard {
             background: #ffffff;
             padding: 20px;
@@ -173,31 +155,144 @@
             box-shadow: 0px 0px 10px lightgray;
         }
 
-        /* DARK MODE */
+        /* Category Analytics Styles */
+        .category-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 15px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            font-size: 16px;
+            transition: 0.3s;
+        }
+
+        .category-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .category-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .category-amount {
+            font-weight: bold;
+            color: #28a745;
+        }
+
+        .dark .category-item {
+            background: #2a2a2a;
+            border-left-color: #28a745;
+            color: #f1f1f1;
+        }
+
+        .dark .category-item:hover {
+            background: #333333;
+        }
+
+        .dark .category-name {
+            color: #f1f1f1;
+        }
+
+        .dark .category-amount {
+            color: #66b3ff;
+        }
+
+        /* Prediction Card Special Styles */
+        .prediction-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-top: 20px;
+            text-align: center;
+            box-shadow: 0px 0px 15px rgba(102, 126, 234, 0.3);
+            transition: 0.3s;
+        }
+
+        .prediction-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0px 5px 25px rgba(102, 126, 234, 0.5);
+        }
+
+        .prediction-card .title {
+            color: white;
+        }
+
+        .prediction-card h3 {
+            margin: 10px 0;
+            font-size: 22px;
+        }
+
+        .prediction-amount {
+            font-size: 36px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .prediction-status {
+            font-size: 20px;
+            padding: 8px 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 25px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .dark .prediction-card {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+        }
+
+        /* Profile Photo in Welcome Card */
+        .profile-photo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid #28a745;
+            object-fit: cover;
+            margin-bottom: 10px;
+        }
+
+        .dark .profile-photo {
+            border-color: #66b3ff;
+        }
+
+        /* ================= DARK MODE ================= */
         .dark {
             background: #121212;
             color: #f1f1f1;
+            transition: 0.3s;
         }
 
         .dark .card {
             background: #1e1e1e;
-            color: white;
+            color: #f1f1f1;
         }
 
         .dark .dashboard {
             background: #1e1e1e;
-            color: white;
+            color: #f1f1f1;
         }
 
         .dark input,
         .dark select {
             background: #2a2a2a;
-            color: white;
+            color: #f1f1f1;
             border: 1px solid #444;
         }
 
+        .dark input[type="file"] {
+            background: #2a2a2a;
+            border-color: #28a745;
+            color: #f1f1f1;
+        }
+
         .dark table {
-            color: white;
+            color: #f1f1f1;
         }
 
         .dark th {
@@ -208,20 +303,76 @@
             border-bottom: 1px solid #444;
         }
 
-        /* Responsive Design */
+        .dark .suggestion-item {
+            background: #2a2a2a;
+            border-left-color: #28a745;
+            color: #f1f1f1;
+        }
+
+        .dark .suggestion-item:hover {
+            background: #333333;
+        }
+
+        .dark .insight-text {
+            background: #2a2a2a;
+            border-left-color: #28a745;
+            color: #f1f1f1;
+        }
+
+        .dark a {
+            color: #66b3ff;
+        }
+
+        .dark .action {
+            color: #66b3ff;
+        }
+
+        /* ================= HEADER BUTTON ================= */
+        .header button {
+            width: auto;
+            padding: 10px 20px;
+            margin-top: 10px;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #28a745;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .header button:hover {
+            background: #f1f1f1;
+            transform: scale(1.05);
+        }
+
+        .dark .header button {
+            background: #2a2a2a;
+            color: #28a745;
+        }
+
+        .dark .header button:hover {
+            background: #333333;
+        }
+
+        /* ================= RESPONSIVE ================= */
         @media (max-width: 768px) {
             .container {
                 width: 95%;
                 padding: 10px;
             }
             
-            img {
-                width: 100%;
-                max-width: 350px;
+            .header {
+                padding: 15px;
             }
             
             .header h1 {
                 font-size: 24px;
+            }
+            
+            img {
+                width: 100%;
+                max-width: 350px;
             }
 
             .suggestion-item {
@@ -233,6 +384,78 @@
                 font-size: 14px;
                 padding: 10px;
             }
+
+            .card:hover {
+                transform: none;
+            }
+
+            .prediction-card h3 {
+                font-size: 18px;
+            }
+
+            .prediction-amount {
+                font-size: 28px;
+            }
+
+            .prediction-status {
+                font-size: 16px;
+            }
+
+            .category-item {
+                font-size: 14px;
+                padding: 8px 12px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                width: 100%;
+                padding: 8px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .title {
+                font-size: 18px;
+            }
+
+            input, select, button {
+                font-size: 13px;
+                padding: 10px;
+            }
+
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            th, td {
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+
+            .prediction-card {
+                padding: 15px;
+            }
+
+            .prediction-amount {
+                font-size: 24px;
+            }
+
+            .prediction-status {
+                font-size: 14px;
+                padding: 6px 15px;
+            }
+
+            .category-item {
+                font-size: 13px;
+                padding: 6px 10px;
+                flex-direction: column;
+                text-align: center;
+            }
         }
     </style>
 </head>
@@ -243,15 +466,29 @@
     <div class="header">
         <h1>💰 Budget Analysis System</h1>
         <p>Income | Expense | Analysis</p>
-        <button onclick="toggleDark()" style="width: auto; padding: 10px 20px;">🌙 Dark Mode</button>
+        <button onclick="toggleDark()">🌙 Dark Mode</button>
     </div>
 
     <div class="container">
 
         <!-- WELCOME -->
         <div class="card">
-            <h2 class="center">👋 Welcome {{ username }}</h2>
-            <p class="center">Manage your expenses smartly</p>
+            <div class="center">
+                {% if user_photo %}
+                    <img src="{{ url_for('static', filename='profiles/' + user_photo) }}" 
+                         alt="Profile Photo" 
+                         class="profile-photo">
+                {% else %}
+                    <img src="{{ url_for('static', filename='profiles/default.png') }}" 
+                         alt="Profile Photo" 
+                         class="profile-photo">
+                {% endif %}
+                <h2>👋 Welcome {{ username }}</h2>
+                {% if user_email %}
+                    <p>📧 {{ user_email }}</p>
+                {% endif %}
+                <p>Manage your expenses smartly</p>
+            </div>
         </div>
 
         <!-- DASHBOARD -->
@@ -261,6 +498,27 @@
             <h3>Income: ₹{{ income }}</h3>
             <h3>Expense: ₹{{ expense }}</h3>
             <h3>Balance: ₹{{ income - expense }}</h3>
+        </div>
+
+        <!-- ================= SMART EXPENSE PREDICTION (GRADIENT CARD) ================= -->
+        <div class="prediction-card">
+            <div class="title">🤖 Smart Expense Prediction</div>
+            <h3>
+                Expected Next Month Expense:
+                <span class="prediction-amount">₹{{ predicted_expense }}</span>
+            </h3>
+            <h3>
+                <span class="prediction-status">{{ prediction_message }}</span>
+            </h3>
+        </div>
+
+        <!-- ================= SMART EXPENSE PREDICTION (SIMPLE CARD - STEP 2) ================= -->
+        <div class="card">
+            <div class="title">🤖 Smart Expense Prediction</div>
+            <div class="center" style="font-size: 20px; line-height: 40px;">
+                <b>Expected Next Month Expense:</b> ₹{{ predicted_expense }}<br>
+                <b>Status:</b> {{ prediction_message }}
+            </div>
         </div>
 
         <!-- ADD TRANSACTION -->
@@ -276,7 +534,6 @@
                     <option value="expense">Expense</option>
                 </select>
 
-                <!-- CATEGORY DROPDOWN -->
                 <select name="category" required>
                     <option value="">Select Category</option>
                     <option value="Salary">Salary</option>
@@ -319,6 +576,14 @@
             </div>
         </div>
 
+        <!-- ================= CATEGORY CHART ================= -->
+        <div class="card">
+            <div class="title">🥧 Category Analytics Chart</div>
+            <div class="center">
+                <img src="{{ url_for('static', filename='category_chart.png') }}?v={{ range(100000)|random }}" alt="Category Analytics Chart">
+            </div>
+        </div>
+
         <!-- BUDGET LIMIT -->
         <div class="card">
             <div class="title">⚙ Budget Limit</div>
@@ -345,6 +610,30 @@
                 <b>Top Category :</b> {{ top_category }} <br>
                 <b>Progress :</b> {{ progress }} %
             </div>
+        </div>
+
+        <!-- ================= CATEGORY ANALYTICS DASHBOARD ================= -->
+        <div class="card">
+            <div class="title">📊 Category Analytics Dashboard</div>
+            
+            <h3 style="text-align: center; color: #28a745; margin-bottom: 20px;">
+                Top Category: {{ top_category }}
+            </h3>
+
+            <div class="category-list">
+                {% for category, amount in category_data.items() %}
+                    <div class="category-item">
+                        <span class="category-name">{{ category }}</span>
+                        <span class="category-amount">₹{{ amount }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+
+            {% if not category_data %}
+                <p style="text-align: center; color: #6c757d; padding: 20px;">
+                    No category data available yet. Start adding transactions!
+                </p>
+            {% endif %}
         </div>
 
         <!-- SMART INSIGHTS -->
@@ -407,6 +696,7 @@
 
         <!-- BUTTONS -->
         <div class="card center">
+            <a href="/profile" style="text-decoration: none; color: #28a745; margin: 0 10px;">👤 Profile Settings</a> |
             <a href="/download" style="text-decoration: none; color: #28a745; margin: 0 10px;">⬇ Download CSV</a> |
             <a href="/pdf" style="text-decoration: none; color: #28a745; margin: 0 10px;">📄 Download PDF</a> |
             <a href="/logout" style="text-decoration: none; color: #dc3545; margin: 0 10px;">🚪 Logout</a>
@@ -414,23 +704,40 @@
 
     </div>
 
+    <!-- ================= JAVASCRIPT ================= -->
     <script>
+        // Toggle Dark Mode
         function toggleDark() {
             document.body.classList.toggle("dark");
 
+            // Update button text
+            const btn = document.querySelector(".header button");
             if (document.body.classList.contains("dark")) {
+                btn.textContent = "☀️ Light Mode";
                 localStorage.setItem("mode", "dark");
             } else {
+                btn.textContent = "🌙 Dark Mode";
                 localStorage.setItem("mode", "light");
             }
         }
 
+        // Load saved preference
         window.onload = function() {
             if (localStorage.getItem("mode") === "dark") {
                 document.body.classList.add("dark");
+                const btn = document.querySelector(".header button");
+                if (btn) btn.textContent = "☀️ Light Mode";
             }
+
+            // Enter key support for chatbot
+            document.getElementById("msg").addEventListener("keypress", function(e) {
+                if (e.key === "Enter") {
+                    sendMsg();
+                }
+            });
         }
 
+        // Send message to chatbot
         function sendMsg() {
             let msg = document.getElementById("msg").value;
 
@@ -438,6 +745,8 @@
                 document.getElementById("reply").innerHTML = "⚠️ Please enter a question";
                 return;
             }
+
+            document.getElementById("reply").innerHTML = "⏳ Thinking...";
 
             fetch("/chatbot", {
                 method: "POST",
@@ -448,7 +757,7 @@
             })
             .then(res => res.json())
             .then(data => {
-                document.getElementById("reply").innerHTML = data.reply;
+                document.getElementById("reply").innerHTML = data.reply || "🤖 No response";
             })
             .catch(error => {
                 console.error("Error:", error);

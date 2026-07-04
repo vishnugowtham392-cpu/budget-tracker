@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, Response, session, jsonify
+from flask import Flask, render_template, request, redirect, Response, session, jsonify, flash
 import sqlite3
 import os
 import csv
@@ -29,39 +29,46 @@ budget_limit = 5000
 os.makedirs("database", exist_ok=True)
 os.makedirs("static", exist_ok=True)
 os.makedirs("uploads", exist_ok=True)
+os.makedirs("static/profiles", exist_ok=True)  # For profile photos
 
 # ================= DATABASE INIT =================
-conn = sqlite3.connect("database/budget.db")
-cursor = conn.cursor()
+def init_db():
+    conn = sqlite3.connect("database/budget.db")
+    cursor = conn.cursor()
+    
+    # ================= UPDATED USERS TABLE WITH PROFILE FEATURES =================
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT,
+            email TEXT,
+            photo TEXT DEFAULT 'default.png'
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS transactions(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            title TEXT,
+            amount REAL,
+            type TEXT,
+            category TEXT,
+            item TEXT,
+            date TEXT
+        )
+    """)
+    
+    try:
+        cursor.execute("ALTER TABLE transactions ADD COLUMN item TEXT")
+    except:
+        pass
+    
+    conn.commit()
+    conn.close()
 
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        password TEXT
-    )
-""")
-
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS transactions(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT,
-        title TEXT,
-        amount REAL,
-        type TEXT,
-        category TEXT,
-        item TEXT,
-        date TEXT
-    )
-""")
-
-try:
-    cursor.execute("ALTER TABLE transactions ADD COLUMN item TEXT")
-except:
-    pass
-
-conn.commit()
-conn.close()
+init_db()
 
 # ================= EMAIL WARNING =================
 def send_warning_email(email, username, expense):
@@ -85,41 +92,60 @@ Please reduce spending.
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == "POST":
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form['username'].strip()
+        password = request.form['password'].strip()
+        email = request.form['email'].strip()
+        
+        if not username or not password or not email:
+            return "All fields are required!"
+        
         conn = sqlite3.connect("database/budget.db")
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                "INSERT INTO users(username,password) VALUES(?,?)",
-                (username, password)
-            )
+            cursor.execute("""
+                INSERT INTO users(username, password, email)
+                VALUES(?, ?, ?)
+            """, (username, password, email))
             conn.commit()
-        except:
+            flash("Account created successfully! Please login.")
             conn.close()
-            return "Username already exists"
-        conn.close()
-        return redirect('/login')
+            return redirect('/login')
+        except sqlite3.IntegrityError:
+            conn.close()
+            return "Username already exists! Please choose another."
+        except Exception as e:
+            conn.close()
+            return f"Error: {str(e)}"
     return render_template("signup.html")
 
 # ================= LOGIN =================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == "POST":
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form['username'].strip()
+        password = request.form['password'].strip()
+        
+        if not username or not password:
+            return "Username and password are required!"
+        
         conn = sqlite3.connect("database/budget.db")
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM users WHERE username=? AND password=?",
-            (username, password)
-        )
+        
+        # Check if user exists
+        cursor.execute("SELECT * FROM users WHERE username=?", (username,))
         user = cursor.fetchone()
         conn.close()
+        
         if user:
-            session['user'] = username
-            return redirect('/')
-        return "Invalid Login"
+            # Check password
+            if user[2] == password:  # password is at index 2
+                session['user'] = username
+                return redirect('/')
+            else:
+                return "Invalid Password! Please try again."
+        else:
+            return "Username not found! Please sign up first."
+    
     return render_template("login.html")
 
 # ================= LOGOUT =================
@@ -134,6 +160,46 @@ def set_limit():
     global budget_limit
     budget_limit = int(request.form['limit'])
     return redirect('/')
+
+# ================= PROFILE SETTINGS =================
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if 'user' not in session:
+        return redirect('/login')
+    
+    username = session['user']
+    conn = sqlite3.connect("database/budget.db")
+    cur = conn.cursor()
+    
+    if request.method == "POST":
+        new_username = request.form['username'].strip()
+        email = request.form['email'].strip()
+        password = request.form['password'].strip()
+        
+        # Check if new username already exists (if changed)
+        if new_username != username:
+            cur.execute("SELECT username FROM users WHERE username=?", (new_username,))
+            if cur.fetchone():
+                conn.close()
+                return "Username already exists! Please choose another."
+        
+        cur.execute("""
+            UPDATE users
+            SET username=?,
+                email=?,
+                password=?
+            WHERE username=?
+        """, (new_username, email, password, username))
+        
+        conn.commit()
+        session['user'] = new_username
+        username = new_username
+    
+    cur.execute("SELECT * FROM users WHERE username=?", (username,))
+    user = cur.fetchone()
+    conn.close()
+    
+    return render_template("profile.html", user=user)
 
 # ================= UPLOAD CSV (SAFE VERSION) =================
 @app.route('/upload', methods=['POST'])
@@ -199,6 +265,12 @@ def home():
     conn = sqlite3.connect("database/budget.db")
     cursor = conn.cursor()
     
+    # GET USER PROFILE DATA
+    cursor.execute("SELECT email, photo FROM users WHERE username=?", (username,))
+    user_data = cursor.fetchone()
+    user_email = user_data[0] if user_data else ""
+    user_photo = user_data[1] if user_data and user_data[1] else "default.png"
+    
     # ADD TRANSACTION
     if request.method == "POST":
         title = request.form['title']
@@ -223,28 +295,43 @@ def home():
     expense = 0
     monthly_data = {}
     
+    # ================= CATEGORY ANALYTICS =================
+    category_data = {}
+    
     # SAFE FIX: Handle both old and new database schemas
     for t in transactions:
-        amount = t[3]
-        t_type = t[4]
+        amt = t[3]
+        ttype = t[4]
+        category = t[5]
+        date = str(t[6])
         
-        if len(t) > 7:
-            month = str(t[7])[:7]
-            item = str(t[6])
-        else:
-            month = str(t[6])[:7]
-            item = "Unknown"
+        month = date[:7]
         
-        total += amount
-        if t_type == "income":
-            income += amount
+        total += amt
+        if ttype == "income":
+            income += amt
         else:
-            expense += amount
-        monthly_data[month] = monthly_data.get(month, 0) + abs(amount)
+            expense += amt
+            # category calculation only for expenses
+            category_data[category] = category_data.get(category, 0) + amt
+        
+        monthly_data[month] = monthly_data.get(month, 0) + abs(amt)
     
-    # TOP CATEGORY
-    categories = [t[5] for t in transactions]
-    top_category = Counter(categories).most_common(1)[0][0] if categories else "None"
+    # ================= SMART EXPENSE PREDICTION =================
+    predicted_expense = round(expense + (expense * 0.1), 2)
+    
+    prediction_message = "Spending looks stable ✅"
+    
+    if expense > (budget_limit * 0.8):
+        prediction_message = "⚠ Food or daily spending may increase"
+    
+    if total > 5000:
+        prediction_message = "📈 Savings trend improving"
+    
+    # ================= TOP CATEGORY =================
+    top_category = "None"
+    if category_data:
+        top_category = max(category_data, key=category_data.get)
     
     # WARNING
     warning = "✅ Budget Under Control"
@@ -317,7 +404,7 @@ def home():
         category_total[category] += amount
         item_total[item] += amount
     
-    # TOP CATEGORY
+    # TOP CATEGORY from insights
     top_spent_category = max(category_total, key=category_total.get) if category_total else "None"
     
     # TOP ITEM
@@ -349,11 +436,26 @@ def home():
     plt.savefig("static/monthly_chart.png", bbox_inches='tight')
     plt.close()
     
+    # ================= CATEGORY CHART =================
+    if category_data:
+        plt.figure()
+        plt.pie(
+            category_data.values(),
+            labels=category_data.keys(),
+            autopct="%1.1f%%"
+        )
+        plt.title("Category Analytics")
+        plt.savefig("static/category_chart.png")
+        plt.close()
+    
     conn.close()
     
+    # ================= RENDER TEMPLATE WITH ALL DATA =================
     return render_template(
         "index.html",
         username=username,
+        user_email=user_email,
+        user_photo=user_photo,
         transactions=transactions,
         total=total,
         income=income,
@@ -364,7 +466,10 @@ def home():
         advice="Track your spending regularly",
         top_category=top_category,
         suggestions=suggestions,
-        insight=insight
+        insight=insight,
+        predicted_expense=predicted_expense,
+        prediction_message=prediction_message,
+        category_data=category_data
     )
 
 # ================= CHATBOT =================
@@ -456,4 +561,4 @@ def delete(id):
 # ================= RUN =================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=True)

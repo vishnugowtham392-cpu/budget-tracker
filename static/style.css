@@ -1,185 +1,268 @@
-body{
-margin:0;
-font-family:Arial,sans-serif;
-background:#f4f6f9;
-transition:0.3s ease;
-}
+/* ================= MOBILE RESPONSIVE ================= */
 
-/* ================= CONTAINER ================= */
-.container{
-width:90%;
-margin:auto;
-padding:20px;
-}
-
-/* ================= HEADER ================= */
-.header{
-text-align:center;
-background:linear-gradient(45deg, #28a745, #218838);
-color:white;
-padding:25px;
-border-radius:0 0 25px 25px;
-}
-
-/* ================= CARDS ================= */
-.card{
-background:white;
-padding:20px;
-margin-top:20px;
-border-radius:15px;
-box-shadow:0px 0px 10px lightgray;
-transition:0.3s ease;
-}
-
-.card:hover{
-transform:scale(1.01);
-box-shadow:0px 0px 15px gray;
-}
-
-/* ================= TITLES ================= */
-.title{
-font-size:24px;
-font-weight:bold;
-text-align:center;
-margin-bottom:15px;
-color:#28a745;
-}
-
-/* ================= CENTER ================= */
-.center{
-text-align:center;
-}
-
-/* ================= INPUTS ================= */
-input,select{
-width:100%;
-padding:12px;
-margin-top:10px;
-border-radius:10px;
-border:1px solid gray;
-box-sizing:border-box;
-}
-
-/* ================= BUTTON ================= */
-button{
-width:100%;
-padding:12px;
-margin-top:15px;
-background:#28a745;
-border:none;
-border-radius:10px;
-color:white;
-font-size:16px;
-cursor:pointer;
-transition:0.3s;
-}
-
-button:hover{
-background:#218838;
-}
-
-/* ================= TABLE ================= */
-table{
-width:100%;
-border-collapse:collapse;
-}
-
-th{
-background:#28a745;
-color:white;
-padding:12px;
-}
-
-td{
-padding:10px;
-text-align:center;
-border-bottom:1px solid lightgray;
-}
-
-/* ================= IMAGES ================= */
-img{
-width:350px;
-margin:10px;
-border-radius:10px;
-}
-
-/* ================= ACTION ICON ================= */
-.action{
-text-decoration:none;
-font-size:20px;
-}
-
-/* ================= SUMMARY ================= */
-.summary{
-line-height:35px;
-font-size:18px;
-}
-
-/* ================= DASHBOARD BOX ================= */
-.dashboard{
-background:#ffffff;
-padding:20px;
-border-radius:15px;
-margin-top:20px;
-text-align:center;
-box-shadow:0px 0px 10px lightgray;
-}
-
-/* ================= DARK MODE ================= */
-.dark{
-background:#121212;
-color:#f1f1f1;
-}
-
-.dark .card{
-background:#1e1e1e;
-color:white;
-}
-
-.dark .dashboard{
-background:#1e1e1e;
-color:white;
-}
-
-.dark input,
-.dark select{
-background:#2a2a2a;
-color:white;
-border:1px solid #444;
-}
-
-.dark table{
-color:white;
-}
-
-/* ================= HEADER BUTTON ================= */
-.header button{
-width:auto;
-padding:10px 15px;
-margin-top:10px;
-border-radius:8px;
-background:#ffffff;
-color:#28a745;
-font-weight:bold;
-}
-
-.header button:hover{
-background:#f1f1f1;
-}
-
-/* ================= RESPONSIVE ================= */
 @media screen and (max-width: 768px){
 
-.container{
-width:100%;
-padding:10px;
+    .container{
+        width:95%;
+        padding:10px;
+    }
+
+    .header{
+        padding:15px;
+        font-size:14px;
+        border-radius:0 0 15px 15px;
+    }
+
+    .header h1{
+        font-size:22px;
+    }
+
+    .title{
+        font-size:20px;
+    }
+
+    .card{
+        padding:15px;
+        margin-top:15px;
+        border-radius:10px;
+    }
+
+    .card:hover{
+        transform:none; /* Disable hover scale on mobile for better UX */
+    }
+
+    input,
+    select,
+    button{
+        width:100%;
+        font-size:14px;
+        padding:10px;
+        margin-top:8px;
+    }
+
+    button{
+        font-size:14px;
+        padding:12px;
+    }
+
+    /* Make images responsive */
+    img{
+        width:100%;
+        height:auto;
+        margin-top:10px;
+    }
+
+    /* Table horizontal scroll for mobile */
+    table{
+        display:block;
+        overflow-x:auto;
+        white-space:nowrap;
+        -webkit-overflow-scrolling:touch; /* Smooth scrolling on iOS */
+    }
+
+    /* Table cells */
+    th, td{
+        padding:8px 12px;
+        font-size:14px;
+    }
+
+    /* Dashboard text size */
+    .dashboard{
+        padding:15px;
+        margin-top:15px;
+    }
+
+    .dashboard h2{
+        font-size:20px;
+    }
+
+    .dashboard h3{
+        font-size:16px;
+    }
+
+    /* Prediction card mobile adjustments */
+    .prediction-card{
+        padding:15px;
+        margin-top:15px;
+    }
+
+    .prediction-card h3{
+        font-size:18px;
+    }
+
+    .prediction-amount{
+        font-size:28px;
+    }
+
+    .prediction-status{
+        font-size:16px;
+        padding:6px 15px;
+    }
+
+    .summary{
+        font-size:16px;
+        line-height:28px;
+        padding:10px;
+    }
+
+    /* Header button */
+    .header button{
+        width:auto;
+        padding:8px 16px;
+        font-size:13px;
+    }
+
+    /* Action icons */
+    .action{
+        font-size:18px;
+    }
+
+    /* Dark mode adjustments for mobile */
+    .dark .card{
+        padding:15px;
+    }
+
+    .dark input,
+    .dark select{
+        font-size:14px;
+        padding:10px;
+    }
 }
 
-img{
-width:100%;
+/* ================= EXTRA SMALL SCREENS (phones < 480px) ================= */
+
+@media screen and (max-width: 480px){
+
+    .container{
+        width:100%;
+        padding:8px;
+    }
+
+    .header{
+        padding:12px;
+        font-size:12px;
+    }
+
+    .header h1{
+        font-size:18px;
+    }
+
+    .title{
+        font-size:18px;
+    }
+
+    .card{
+        padding:12px;
+        margin-top:12px;
+    }
+
+    input,
+    select,
+    button{
+        font-size:13px;
+        padding:8px;
+    }
+
+    th, td{
+        padding:6px 8px;
+        font-size:12px;
+    }
+
+    .dashboard h2{
+        font-size:18px;
+    }
+
+    .dashboard h3{
+        font-size:14px;
+    }
+
+    /* Prediction card extra small adjustments */
+    .prediction-card{
+        padding:12px;
+    }
+
+    .prediction-card h3{
+        font-size:16px;
+    }
+
+    .prediction-amount{
+        font-size:24px;
+    }
+
+    .prediction-status{
+        font-size:14px;
+        padding:4px 12px;
+    }
+
+    .summary{
+        font-size:14px;
+        line-height:24px;
+    }
+
+    .header button{
+        padding:6px 12px;
+        font-size:12px;
+    }
 }
 
-button{
-font-size:14px;
+/* ================= PREDICTION CLASS ================= */
+.prediction{
+    text-align:center;
+    font-size:18px;
+    line-height:35px;
 }
+
+/* Additional prediction card styles for better appearance */
+.prediction-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 25px;
+    border-radius: 15px;
+    margin-top: 20px;
+    text-align: center;
+    box-shadow: 0px 0px 15px rgba(102, 126, 234, 0.3);
+    transition: 0.3s;
+}
+
+.prediction-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0px 5px 25px rgba(102, 126, 234, 0.5);
+}
+
+.prediction-card .title {
+    color: white;
+}
+
+.prediction-card h3 {
+    margin: 10px 0;
+    font-size: 22px;
+}
+
+.prediction-amount {
+    font-size: 36px;
+    font-weight: bold;
+    color: #ffd700;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.prediction-status {
+    font-size: 20px;
+    padding: 8px 20px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 25px;
+    display: inline-block;
+    margin-top: 10px;
+}
+
+/* Dark mode prediction card */
+.dark .prediction-card {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+}
+
+.dark .prediction-amount {
+    color: #fbbf24;
+}
+
+.dark .prediction-status {
+    background: rgba(255,255,255,0.15);
 }

@@ -139,6 +139,11 @@ input::placeholder{
 color:#ddd;
 }
 
+input:focus{
+background:rgba(255,255,255,.3);
+box-shadow:0 0 10px rgba(0,191,255,0.3);
+}
+
 /* Button */
 
 button{
@@ -172,6 +177,10 @@ transform:scale(1.05);
 
 }
 
+button:active{
+transform:scale(0.95);
+}
+
 a{
 
 color:#00ffff;
@@ -179,9 +188,36 @@ color:#00ffff;
 text-decoration:none;
 }
 
+a:hover{
+text-decoration:underline;
+color:#66ffff;
+}
+
 p{
 
 margin-top:20px;
+}
+
+/* Small screen responsive */
+@media (max-width: 480px){
+    .container{
+        width: 90%;
+        padding: 25px;
+    }
+    
+    h1{
+        font-size: 24px;
+    }
+    
+    input{
+        padding: 10px;
+        font-size: 13px;
+    }
+    
+    button{
+        padding: 10px;
+        font-size: 14px;
+    }
 }
 
 </style>
@@ -206,6 +242,12 @@ Create New Account
 type="text"
 name="username"
 placeholder="Enter Username"
+required>
+
+<input
+type="email"
+name="email"
+placeholder="Enter Email"
 required>
 
 <input
