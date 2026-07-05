@@ -554,7 +554,7 @@
             <h3>Balance: ₹{{ income - expense }}</h3>
         </div>
 
-        <!-- ================= AI FINANCIAL PREDICTION (UPDATED) ================= -->
+        <!-- ================= AI FINANCIAL PREDICTION ================= -->
         <div class="card">
             <div class="title">🤖 AI Financial Prediction</div>
             
@@ -580,33 +580,43 @@
             </div>
         </div>
 
-        <!-- ADD TRANSACTION -->
+        <!-- ================= ADD TRANSACTION (UPDATED - Item only for Expense) ================= -->
         <div class="card">
             <div class="title">➕ Add Transaction</div>
 
             <form method="POST">
-                <input type="text" name="title" placeholder="Title" required>
-                <input type="number" name="amount" placeholder="Amount" step="0.01" required>
+                <!-- Title -->
+                <input type="text" name="title" placeholder="Title (e.g., Morning Food, Salary)" required>
 
-                <select name="type" required>
-                    <option value="income">Income</option>
-                    <option value="expense">Expense</option>
+                <!-- Amount -->
+                <input type="number" name="amount" placeholder="Amount (e.g., 500)" step="0.01" required>
+
+                <!-- Type -->
+                <select name="type" id="type" onchange="toggleFields()" required>
+                    <option value="income">💰 Income</option>
+                    <option value="expense">💸 Expense</option>
                 </select>
 
-                <select name="category" required>
-                    <option value="">Select Category</option>
-                    <option value="Salary">Salary</option>
-                    <option value="Food">Food</option>
-                    <option value="Travel">Travel</option>
-                    <option value="Shopping">Shopping</option>
-                    <option value="Education">Education</option>
-                    <option value="Bills">Bills</option>
-                    <option value="Entertainment">Entertainment</option>
-                    <option value="Medical">Medical</option>
-                    <option value="Other">Other</option>
-                </select>
+                <!-- ================= CATEGORY + ITEM (Shows only for Expense) ================= -->
+                <div id="expenseFields" style="display:none;">
+                    <!-- Category -->
+                    <select name="category">
+                        <option value="">Select Category</option>
+                        <option value="Food">🍽 Food</option>
+                        <option value="Travel">✈️ Travel</option>
+                        <option value="Shopping">🛍 Shopping</option>
+                        <option value="Bills">📄 Bills</option>
+                        <option value="Education">📚 Education</option>
+                        <option value="Entertainment">🎬 Entertainment</option>
+                        <option value="Medical">🏥 Medical</option>
+                        <option value="Others">📦 Others</option>
+                    </select>
 
-                <input type="text" name="item" placeholder="Item (Idly / Dosai / Petrol / Bus)" required>
+                    <!-- Item -->
+                    <input type="text" name="item" placeholder="Item (Idly / Dosai / Petrol / Bus)">
+                </div>
+
+                <!-- Date -->
                 <input type="date" name="date" required>
 
                 <button type="submit">Add Transaction</button>
@@ -695,7 +705,7 @@
             {% endif %}
         </div>
 
-        <!-- ================= SMART INSIGHTS (UPDATED) ================= -->
+        <!-- ================= SMART INSIGHTS ================= -->
         <div class="card">
             <div class="title">🧠 Smart Insights</div>
             
@@ -738,7 +748,7 @@
             <h3 id="reply"></h3>
         </div>
 
-        <!-- ================= TRANSACTION TABLE (FIXED) ================= -->
+        <!-- ================= TRANSACTION TABLE ================= -->
         <div class="card">
             <div class="title">📋 Transactions</div>
 
@@ -797,13 +807,30 @@
             }
         }
 
-        // Load saved preference
+        // Toggle Category & Item visibility based on Type selection
+        function toggleFields() {
+            let type = document.getElementById("type").value;
+            let expenseFields = document.getElementById("expenseFields");
+
+            if (type == "expense") {
+                expenseFields.style.display = "block";
+                expenseFields.style.marginTop = "10px";
+            } else {
+                expenseFields.style.display = "none";
+            }
+        }
+
+        // Load saved preference and initialize
         window.onload = function() {
+            // Dark mode
             if (localStorage.getItem("mode") === "dark") {
                 document.body.classList.add("dark");
                 const btn = document.querySelector(".header button");
                 if (btn) btn.textContent = "☀️ Light Mode";
             }
+
+            // Initialize category & item visibility
+            toggleFields();
 
             // Enter key support for chatbot
             document.getElementById("msg").addEventListener("keypress", function(e) {

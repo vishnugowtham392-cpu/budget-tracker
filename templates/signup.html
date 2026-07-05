@@ -1,282 +1,183 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Signup</title>
-
-<style>
-
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-font-family:Arial,sans-serif;
-}
-
-body{
-
-height:100vh;
-
-display:flex;
-justify-content:center;
-align-items:center;
-
-background:
-radial-gradient(circle at top left,#00d4ff,#001a66),
-linear-gradient(135deg,#000428,#004e92);
-
-overflow:hidden;
-}
-
-/* Background glow */
-
-body::before{
-content:"";
-position:absolute;
-
-width:300px;
-height:300px;
-
-background:#00bfff;
-
-border-radius:50%;
-
-top:-100px;
-left:-100px;
-
-filter:blur(100px);
-
-opacity:.5;
-}
-
-body::after{
-
-content:"";
-position:absolute;
-
-width:300px;
-height:300px;
-
-background:#0066ff;
-
-border-radius:50%;
-
-bottom:-100px;
-right:-100px;
-
-filter:blur(100px);
-
-opacity:.5;
-}
-
-/* Signup Box */
-
-.container{
-
-position:relative;
-
-width:380px;
-
-padding:35px;
-
-background:rgba(255,255,255,.12);
-
-backdrop-filter:blur(15px);
-
-border-radius:20px;
-
-box-shadow:0 0 30px rgba(0,0,0,.5);
-
-text-align:center;
-
-color:white;
-}
-
-/* Title */
-
-h1{
-
-font-size:30px;
-
-margin-bottom:10px;
-
-letter-spacing:1px;
-}
-
-.subtitle{
-
-margin-bottom:25px;
-
-font-size:15px;
-
-color:#ddd;
-}
-
-/* Input */
-
-input{
-
-width:100%;
-
-padding:12px;
-
-margin:10px 0;
-
-border:none;
-
-outline:none;
-
-border-radius:25px;
-
-background:rgba(255,255,255,.2);
-
-color:white;
-
-font-size:14px;
-}
-
-input::placeholder{
-
-color:#ddd;
-}
-
-input:focus{
-background:rgba(255,255,255,.3);
-box-shadow:0 0 10px rgba(0,191,255,0.3);
-}
-
-/* Button */
-
-button{
-
-width:100%;
-
-padding:12px;
-
-margin-top:15px;
-
-border:none;
-
-border-radius:25px;
-
-background:#00bfff;
-
-color:white;
-
-font-size:16px;
-
-cursor:pointer;
-
-transition:.4s;
-}
-
-button:hover{
-
-background:#008cff;
-
-transform:scale(1.05);
-
-}
-
-button:active{
-transform:scale(0.95);
-}
-
-a{
-
-color:#00ffff;
-
-text-decoration:none;
-}
-
-a:hover{
-text-decoration:underline;
-color:#66ffff;
-}
-
-p{
-
-margin-top:20px;
-}
-
-/* Small screen responsive */
-@media (max-width: 480px){
-    .container{
-        width: 90%;
-        padding: 25px;
-    }
-    
-    h1{
-        font-size: 24px;
-    }
-    
-    input{
-        padding: 10px;
-        font-size: 13px;
-    }
-    
-    button{
-        padding: 10px;
-        font-size: 14px;
-    }
-}
-
-</style>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signup - Budget Analysis System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at top left, #00d4ff, #001a66),
+                        linear-gradient(135deg, #000428, #004e92);
+            overflow: hidden;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: #00bfff;
+            border-radius: 50%;
+            top: -100px;
+            left: -100px;
+            filter: blur(100px);
+            opacity: .5;
+        }
+
+        body::after {
+            content: "";
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: #0066ff;
+            border-radius: 50%;
+            bottom: -100px;
+            right: -100px;
+            filter: blur(100px);
+            opacity: .5;
+        }
+
+        .container {
+            position: relative;
+            width: 380px;
+            padding: 35px;
+            background: rgba(255, 255, 255, .12);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, .5);
+            text-align: center;
+            color: white;
+        }
+
+        h1 {
+            font-size: 30px;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            margin-bottom: 25px;
+            font-size: 15px;
+            color: #ddd;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            outline: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, .2);
+            color: white;
+            font-size: 14px;
+        }
+
+        input::placeholder {
+            color: #ddd;
+        }
+
+        input:focus {
+            background: rgba(255, 255, 255, .3);
+            box-shadow: 0 0 10px rgba(0, 191, 255, 0.3);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            border: none;
+            border-radius: 25px;
+            background: #00bfff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: .4s;
+        }
+
+        button:hover {
+            background: #008cff;
+            transform: scale(1.05);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        a {
+            color: #00ffff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+            color: #66ffff;
+        }
+
+        p {
+            margin-top: 20px;
+        }
+
+        .flash-message {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            color: #fff;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                width: 90%;
+                padding: 25px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            input {
+                padding: 10px;
+                font-size: 13px;
+            }
+            button {
+                padding: 10px;
+                font-size: 14px;
+            }
+        }
+    </style>
 </head>
-
 <body>
+    <div class="container">
+        <h1>💰 Budget Analysis System</h1>
+        <div class="subtitle">Create New Account</div>
 
-<div class="container">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash-message">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
-<h1>💰 Budget Analysis System</h1>
+        <form method="POST">
+            <input type="text" name="username" placeholder="Enter Username" required>
+            <input type="email" name="email" placeholder="Enter Email" required>
+            <input type="password" name="password" placeholder="Enter Password" required>
+            <button type="submit">Create Account</button>
+        </form>
 
-<div class="subtitle">
-
-Create New Account
-
-</div>
-
-<form method="POST">
-
-<input
-type="text"
-name="username"
-placeholder="Enter Username"
-required>
-
-<input
-type="email"
-name="email"
-placeholder="Enter Email"
-required>
-
-<input
-type="password"
-name="password"
-placeholder="Enter Password"
-required>
-
-<button type="submit">
-
-Create Account
-
-</button>
-
-</form>
-
-<p>
-
-Already have an account?
-
-<a href="/login">
-
-Login
-
-</a>
-
-</p>
-
-</div>
-
+        <p>Already have an account? <a href="/login">Login</a></p>
+    </div>
 </body>
 </html>

@@ -93,7 +93,7 @@ Please reduce spending.
     except Exception as e:
         print("Mail Error:", e)
 
-# ================= SIGNUP =================
+# ================= SIGNUP (UPDATED WITH FLASH MESSAGES) =================
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == "POST":
@@ -102,7 +102,8 @@ def signup():
         email = request.form['email'].strip()
         
         if not username or not password or not email:
-            return "All fields are required!"
+            flash("All fields are required!")
+            return render_template("signup.html")
         
         conn = sqlite3.connect("database/budget.db")
         cursor = conn.cursor()
@@ -117,41 +118,45 @@ def signup():
             return redirect('/login')
         except sqlite3.IntegrityError:
             conn.close()
-            return "Username already exists! Please choose another."
+            flash("Username already exists! Please choose another.")
+            return render_template("signup.html")
         except Exception as e:
             conn.close()
-            return f"Error: {str(e)}"
+            flash(f"Error: {str(e)}")
+            return render_template("signup.html")
+    
     return render_template("signup.html")
 
-# ================= LOGIN =================
+# ================= LOGIN (UPDATED WITH ERROR HANDLING) =================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    error = None
     if request.method == "POST":
         username = request.form['username'].strip()
         password = request.form['password'].strip()
         
         if not username or not password:
-            return "Username and password are required!"
-        
-        conn = sqlite3.connect("database/budget.db")
-        cursor = conn.cursor()
-        
-        # Check if user exists
-        cursor.execute("SELECT * FROM users WHERE username=?", (username,))
-        user = cursor.fetchone()
-        conn.close()
-        
-        if user:
-            # Check password
-            if user[2] == password:  # password is at index 2
-                session['user'] = username
-                return redirect('/')
-            else:
-                return "Invalid Password! Please try again."
+            error = "Username and password are required!"
         else:
-            return "Username not found! Please sign up first."
+            conn = sqlite3.connect("database/budget.db")
+            cursor = conn.cursor()
+            
+            # Check if user exists
+            cursor.execute("SELECT * FROM users WHERE username=?", (username,))
+            user = cursor.fetchone()
+            conn.close()
+            
+            if user:
+                # Check password
+                if user[2] == password:  # password is at index 2
+                    session['user'] = username
+                    return redirect('/')
+                else:
+                    error = "Invalid Password! Please try again."
+            else:
+                error = "Username not found! Please sign up first."
     
-    return render_template("login.html")
+    return render_template("login.html", error=error)
 
 # ================= LOGOUT =================
 @app.route('/logout')
@@ -288,18 +293,23 @@ def home():
     user_email = user_data[0] if user_data else ""
     user_photo = user_data[1] if user_data and user_data[1] else "default.png"
     
-    # ================= ADD TRANSACTION (FIXED) =================
+    # ================= ADD TRANSACTION (UPDATED WITH SAFE CATEGORY) =================
     if request.method == "POST":
         title = request.form['title']
         amount = float(request.form['amount'])
         ttype = request.form['type']
-        category = request.form['category']
-        item = request.form.get('item', "")
-        date = request.form['date']
         
-        # Salary special handling
+        # ================= SAFE CATEGORY HANDLING =================
+        # If income, category is "Income"
+        # If expense, get the selected category
         if ttype == "income":
+            category = "Income"
             item = "Income Source"
+        else:
+            category = request.form.get('category', 'Other')
+            item = request.form.get('item', "")
+        
+        date = request.form['date']
         
         cursor.execute("""
             INSERT INTO transactions (username,title,amount,type,category,item,date)
@@ -365,9 +375,9 @@ def home():
     if expense > budget_limit:
         warning = "⚠ Budget Exceeded"
     
-    # ================= SMART AI SAVING SYSTEM =================
+    # ================= SMART AI SAVING SYSTEM (COMPLETE) =================
     smart_items = {
-        # Morning Foods
+        # ================= MORNING FOODS =================
         "idli": {
             "alternative": "Home-made Idli 🥣",
             "reason": "Home food usually costs less",
@@ -380,7 +390,19 @@ def home():
             "benefit": "Healthy and saves money",
             "motivation": "Small savings create big results 💪"
         },
+        "dosa": {
+            "alternative": "Idli 🥣",
+            "reason": "Less oil and lower cost",
+            "benefit": "Healthy and saves money",
+            "motivation": "Small savings create big results 💪"
+        },
         "poori": {
+            "alternative": "Chapathi 🌮",
+            "reason": "Poori contains more oil",
+            "benefit": "Healthier option",
+            "motivation": "Choose smart food choices 🏃"
+        },
+        "puri": {
             "alternative": "Chapathi 🌮",
             "reason": "Poori contains more oil",
             "benefit": "Healthier option",
@@ -392,7 +414,32 @@ def home():
             "benefit": "Energy + savings",
             "motivation": "Healthy body, healthy wallet ✨"
         },
-        # Afternoon Foods
+        "uppuma": {
+            "alternative": "Oats Porridge 🥣",
+            "reason": "Uppuma contains more oil",
+            "benefit": "Better nutrition + savings",
+            "motivation": "Healthy food, healthy life 💪"
+        },
+        "upma": {
+            "alternative": "Oats Porridge 🥣",
+            "reason": "Upma contains more oil",
+            "benefit": "Better nutrition + savings",
+            "motivation": "Healthy food, healthy life 💪"
+        },
+        "chapathi": {
+            "alternative": "Home-made Chapathi 🌮",
+            "reason": "Outside chapathi costs more",
+            "benefit": "Save money + healthy food",
+            "motivation": "Home food is always best 🏠"
+        },
+        "chapati": {
+            "alternative": "Home-made Chapathi 🌮",
+            "reason": "Outside chapathi costs more",
+            "benefit": "Save money + healthy food",
+            "motivation": "Home food is always best 🏠"
+        },
+
+        # ================= AFTERNOON FOODS =================
         "briyani": {
             "alternative": "Meals 🍛",
             "reason": "Briyani often costs more",
@@ -411,20 +458,77 @@ def home():
             "benefit": "Save money + lighter food",
             "motivation": "Simple habits grow savings 💰"
         },
+        "noodles": {
+            "alternative": "Veg Pasta 🍝",
+            "reason": "Noodles are processed food",
+            "benefit": "Healthy alternative + savings",
+            "motivation": "Eat healthy, save money 🌟"
+        },
         "meals": {
             "alternative": "Mini Meals 🍽",
             "reason": "Large meals increase spending",
             "benefit": "Reduce unnecessary expense",
             "motivation": "Spend wisely 🎯"
         },
-        # Evening Foods
+        "thali": {
+            "alternative": "Mini Meals 🍽",
+            "reason": "Large thali costs more",
+            "benefit": "Save money + less food waste",
+            "motivation": "Eat less, save more 💰"
+        },
+
+        # ================= EVENING SNACKS =================
         "chips": {
             "alternative": "Fruits 🍎",
             "reason": "Chips are processed snacks",
             "benefit": "Better nutrition + savings",
             "motivation": "Healthy snacks, healthy life 🌟"
         },
+        "biscuit": {
+            "alternative": "Home-made Snacks 🍪",
+            "reason": "Packaged biscuits are expensive",
+            "benefit": "Save money + eat healthy",
+            "motivation": "Home snacks are best 🏠"
+        },
+        "samosa": {
+            "alternative": "Idli 🥣",
+            "reason": "Samosa is oily and expensive",
+            "benefit": "Healthy food + savings",
+            "motivation": "Choose healthy snacks 💪"
+        },
+        "vada": {
+            "alternative": "Idli 🥣",
+            "reason": "Vada is deep fried",
+            "benefit": "Less oil + save money",
+            "motivation": "Healthy choices matter 🌟"
+        },
+        "bondas": {
+            "alternative": "Idli 🥣",
+            "reason": "Bonda is oily",
+            "benefit": "Healthy alternative + savings",
+            "motivation": "Smart snack choices 💪"
+        },
+        "bonda": {
+            "alternative": "Idli 🥣",
+            "reason": "Bonda is oily",
+            "benefit": "Healthy alternative + savings",
+            "motivation": "Smart snack choices 💪"
+        },
+        "pakoda": {
+            "alternative": "Fruits 🍎",
+            "reason": "Pakoda is deep fried",
+            "benefit": "Healthy + save money",
+            "motivation": "Choose fruits over fried 🍎"
+        },
+
+        # ================= DRINKS =================
         "tea": {
+            "alternative": "Home-made Tea ☕",
+            "reason": "Daily outside tea adds up",
+            "benefit": "Reduce repeated expenses",
+            "motivation": "₹20/day ≈ ₹600/month 💰"
+        },
+        "chai": {
             "alternative": "Home-made Tea ☕",
             "reason": "Daily outside tea adds up",
             "benefit": "Reduce repeated expenses",
@@ -436,8 +540,39 @@ def home():
             "benefit": "Lower cost",
             "motivation": "Save little, gain more 🚀"
         },
-        # Night Foods
+        "cafe": {
+            "alternative": "Milk/Home Coffee 🥛",
+            "reason": "Outside coffee is expensive",
+            "benefit": "Lower cost",
+            "motivation": "Save little, gain more 🚀"
+        },
+        "cool drink": {
+            "alternative": "Lemon Juice 🍋",
+            "reason": "Cool drinks are unhealthy",
+            "benefit": "Healthy + savings",
+            "motivation": "Choose natural drinks 🌿"
+        },
+        "soda": {
+            "alternative": "Lemon Juice 🍋",
+            "reason": "Soda is unhealthy",
+            "benefit": "Healthy + savings",
+            "motivation": "Natural is always better 🌿"
+        },
+        "juice": {
+            "alternative": "Home-made Juice 🥤",
+            "reason": "Outside juice costs more",
+            "benefit": "Save money + healthy",
+            "motivation": "Home juice is best 🏠"
+        },
+
+        # ================= NIGHT FOODS =================
         "parotta": {
+            "alternative": "Chapathi 🌮",
+            "reason": "Heavy oily foods affect health",
+            "benefit": "Better digestion + savings",
+            "motivation": "Healthy nights matter 🌙"
+        },
+        "paratha": {
             "alternative": "Chapathi 🌮",
             "reason": "Heavy oily foods affect health",
             "benefit": "Better digestion + savings",
@@ -449,8 +584,27 @@ def home():
             "benefit": "Healthy and economical",
             "motivation": "Smart food, smart future 💪"
         },
-        # Entertainment
+        "burger": {
+            "alternative": "Sandwich 🥪",
+            "reason": "Fast food is expensive",
+            "benefit": "Healthy + savings",
+            "motivation": "Homemade is always better 🏠"
+        },
+        "pizza": {
+            "alternative": "Home-made Pizza 🍕",
+            "reason": "Outside pizza costs more",
+            "benefit": "Same taste + less cost",
+            "motivation": "Make pizza at home 🏠"
+        },
+
+        # ================= ENTERTAINMENT =================
         "movie": {
+            "alternative": "Watch OTT 📺",
+            "reason": "Theatre ticket + snacks increase spending",
+            "benefit": "Lower entertainment cost",
+            "motivation": "Enjoy more, spend less 🎬"
+        },
+        "cinema": {
             "alternative": "Watch OTT 📺",
             "reason": "Theatre ticket + snacks increase spending",
             "benefit": "Lower entertainment cost",
@@ -468,7 +622,20 @@ def home():
             "benefit": "Same enjoyment with lower cost",
             "motivation": "Small snack savings become big savings 😄"
         },
-        # Daily Usage
+        "gaming": {
+            "alternative": "Free Games 🎮",
+            "reason": "Paid games increase expenses",
+            "benefit": "Same fun + savings",
+            "motivation": "Free games are also fun 🎮"
+        },
+        "pub": {
+            "alternative": "Home Party 🏠",
+            "reason": "Pubs are expensive",
+            "benefit": "Save money + enjoy with friends",
+            "motivation": "Home parties are better 🎉"
+        },
+
+        # ================= DAILY USAGE =================
         "water bottle": {
             "alternative": "Carry Water Bottle 🚰",
             "reason": "Daily purchases increase cost",
@@ -481,11 +648,141 @@ def home():
             "benefit": "Reduce travel expenses",
             "motivation": "Travel smart 🌍"
         },
+        "diesel": {
+            "alternative": "Public Transport 🚌",
+            "reason": "Fuel costs increase over time",
+            "benefit": "Reduce travel expenses",
+            "motivation": "Travel smart 🌍"
+        },
+        "bus": {
+            "alternative": "Cycle/Shared Auto 🚲",
+            "reason": "Daily bus fare adds up",
+            "benefit": "Save on daily travel",
+            "motivation": "Cycle more, save more 🌿"
+        },
+        "auto": {
+            "alternative": "Public Bus 🚌",
+            "reason": "Auto fares are higher",
+            "benefit": "Save on travel",
+            "motivation": "Choose cheaper transport 💰"
+        },
+        "cab": {
+            "alternative": "Public Transport 🚌",
+            "reason": "Cab is expensive",
+            "benefit": "Save money on travel",
+            "motivation": "Save money, travel smart 🚌"
+        },
         "mobile recharge": {
             "alternative": "Long-term Plan 📱",
             "reason": "Frequent recharges cost more",
             "benefit": "Better value",
             "motivation": "Spend once and save more 💡"
+        },
+        "phone recharge": {
+            "alternative": "Long-term Plan 📱",
+            "reason": "Frequent recharges cost more",
+            "benefit": "Better value",
+            "motivation": "Spend once and save more 💡"
+        },
+
+        # ================= GROCERY =================
+        "oil": {
+            "alternative": "Buy in Bulk 🛒",
+            "reason": "Small packets cost more",
+            "benefit": "Save money",
+            "motivation": "Bulk buying saves money 💰"
+        },
+        "rice": {
+            "alternative": "Buy in Bulk 🛒",
+            "reason": "Small packets cost more",
+            "benefit": "Save money",
+            "motivation": "Bulk buying saves money 💰"
+        },
+        "wheat": {
+            "alternative": "Buy in Bulk 🛒",
+            "reason": "Small packets cost more",
+            "benefit": "Save money",
+            "motivation": "Bulk buying saves money 💰"
+        },
+        "sugar": {
+            "alternative": "Buy in Bulk 🛒",
+            "reason": "Small packets cost more",
+            "benefit": "Save money",
+            "motivation": "Bulk buying saves money 💰"
+        },
+
+        # ================= SHOPPING =================
+        "clothes": {
+            "alternative": "Season Sale Shopping 👕",
+            "reason": "Regular prices are high",
+            "benefit": "Save on shopping",
+            "motivation": "Sale shopping saves money 🛍"
+        },
+        "shirt": {
+            "alternative": "Season Sale Shopping 👕",
+            "reason": "Regular prices are high",
+            "benefit": "Save on shopping",
+            "motivation": "Sale shopping saves money 🛍"
+        },
+        "pants": {
+            "alternative": "Season Sale Shopping 👖",
+            "reason": "Regular prices are high",
+            "benefit": "Save on shopping",
+            "motivation": "Sale shopping saves money 🛍"
+        },
+        "shoes": {
+            "alternative": "Season Sale Shopping 👟",
+            "reason": "Regular prices are high",
+            "benefit": "Save on shopping",
+            "motivation": "Sale shopping saves money 🛍"
+        },
+
+        # ================= ELECTRONICS =================
+        "mobile": {
+            "alternative": "Buy During Sale 📱",
+            "reason": "Regular prices are higher",
+            "benefit": "Save money on electronics",
+            "motivation": "Wait for sale to save 💰"
+        },
+        "laptop": {
+            "alternative": "Buy During Sale 💻",
+            "reason": "Regular prices are higher",
+            "benefit": "Save money on electronics",
+            "motivation": "Wait for sale to save 💰"
+        },
+        "tv": {
+            "alternative": "Buy During Sale 📺",
+            "reason": "Regular prices are higher",
+            "benefit": "Save money on electronics",
+            "motivation": "Wait for sale to save 💰"
+        },
+
+        # ================= MEDICAL =================
+        "medicine": {
+            "alternative": "Generic Medicine 💊",
+            "reason": "Branded medicines cost more",
+            "benefit": "Same effect + savings",
+            "motivation": "Generic medicines are equally effective 💊"
+        },
+        "tablet": {
+            "alternative": "Generic Medicine 💊",
+            "reason": "Branded medicines cost more",
+            "benefit": "Same effect + savings",
+            "motivation": "Generic medicines are equally effective 💊"
+        },
+
+        # ================= BILLS =================
+        "electricity": {
+            "alternative": "Use Energy Efficient Devices 💡",
+            "reason": "High electricity bills",
+            "benefit": "Reduce monthly bills",
+            "motivation": "Save power, save money 💡"
+        },
+        "water": {
+            "alternative": "Use Water Wisely 💧",
+            "reason": "Wasting water increases bills",
+            "benefit": "Reduce water bills",
+            "motivation": "Save water, save money 💧"
         }
     }
     
@@ -493,9 +790,9 @@ def home():
     suggestions = []
     
     for t in transactions:
-        # Try both t[6] and t[7] for item (depending on schema)
+        # Get item from transaction
         try:
-            item = str(t[6]).lower() if len(t) > 6 else str(t[7]).lower()
+            item = str(t[6]).lower() if len(t) > 6 else ""
         except:
             item = ""
         
@@ -538,7 +835,7 @@ def home():
         amount = float(t[3])
         ttype = t[4]
         category = t[5]
-        item = t[6]
+        item = t[6] if len(t) > 6 else ""
         
         # Ignore income for spending analysis
         if ttype == "expense":
@@ -546,7 +843,7 @@ def home():
             
             if amount > most_expense:
                 most_expense = amount
-                most_item = item
+                most_item = item if item else "Unknown"
     
     # Top spending category
     top_spent_category = "None"
