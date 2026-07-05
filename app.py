@@ -619,18 +619,142 @@ def home():
         category_data=category_data
     )
 
-# ================= CHATBOT =================
+# ================= AI CHATBOT (ENHANCED) =================
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
-    msg = request.form['message'].lower()
-    if "income" in msg:
-        reply = "Income means money you earn 💰"
-    elif "expense" in msg:
-        reply = "Expense means money you spend 💸"
-    elif "budget" in msg:
-        reply = "Budget is your spending limit ⚙"
+    msg = request.form['message'].lower().strip()
+    
+    username = session['user']
+    
+    conn = sqlite3.connect("database/budget.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
+    transactions = cursor.fetchall()
+    conn.close()
+    
+    total_income = 0
+    total_expense = 0
+    categories = {}
+    
+    for t in transactions:
+        amount = float(t[3])
+        t_type = t[4]
+        category = t[5]
+        
+        if t_type == "income":
+            total_income += amount
+        else:
+            total_expense += amount
+            categories[category] = categories.get(category, 0) + amount
+    
+    balance = total_income - total_expense
+    
+    if categories:
+        top_category = max(categories, key=categories.get)
     else:
-        reply = "Ask about income, expense, budget"
+        top_category = "No expenses"
+    
+    # ---------------- Finance Questions ----------------
+    if "total income" in msg:
+        reply = f"💰 Your total income is ₹{total_income}"
+    
+    elif "total expense" in msg:
+        reply = f"💸 Your total expense is ₹{total_expense}"
+    
+    elif "balance" in msg:
+        reply = f"🏦 Your current balance is ₹{balance}"
+    
+    elif "budget" in msg:
+        remaining = budget_limit - total_expense
+        reply = f"📊 Remaining budget: ₹{remaining}"
+    
+    elif "top category" in msg or "highest expense" in msg:
+        reply = f"📈 Highest spending category: {top_category}"
+    
+    elif "save money" in msg:
+        reply = "💡 Spend wisely, avoid unnecessary shopping, and track every expense."
+    
+    elif "advice" in msg:
+        reply = "📊 Save at least 20% of your monthly income."
+    
+    # ---------------- Greetings ----------------
+    elif msg in ["hi", "hello", "hey"]:
+        reply = f"👋 Hello {username}! Welcome back."
+    
+    elif "how are you" in msg:
+        reply = "😊 I'm doing great! Ready to help with your budget."
+    
+    elif "good morning" in msg:
+        reply = "🌞 Good Morning! Have a productive day."
+    
+    elif "good night" in msg:
+        reply = "🌙 Good Night! Don't forget to save money."
+    
+    elif "thank" in msg:
+        reply = "😊 You're welcome! Happy budgeting."
+    
+    # ---------------- Project Information ----------------
+    elif "who made you" in msg:
+        reply = "👨‍💻 I was created for the Budget Analysis System project."
+    
+    elif "what is this project" in msg:
+        reply = "📊 This is a Budget Analysis System developed using Python Flask and SQLite."
+    
+    elif "technology" in msg:
+        reply = "🛠 HTML, CSS, JavaScript, Python Flask, SQLite, Matplotlib, Flask-Mail and ReportLab."
+    
+    elif "flask" in msg:
+        reply = "🐍 Flask is a lightweight Python web framework."
+    
+    elif "sqlite" in msg:
+        reply = "🗄 SQLite is a lightweight relational database."
+    
+    # ---------------- Funny Responses ----------------
+    elif "tell me a joke" in msg:
+        reply = "😂 Why did the wallet go to school? To improve its balance!"
+    
+    elif "are you intelligent" in msg:
+        reply = "🤖 I know where your money is going 😄"
+    
+    elif "i am broke" in msg:
+        reply = "😂 Don't worry! Every big saver started with their first rupee."
+    
+    elif "i need money" in msg:
+        reply = "💸 I can't print money, but I can help you save it."
+    
+    elif "do you love money" in msg:
+        reply = "😂 I love helping YOU save money."
+    
+    elif "who is your boss" in msg:
+        reply = "😎 My boss is the developer who built this Budget Analysis System."
+    
+    elif "sing a song" in msg:
+        reply = "🎵 Save money... Spend wisely... That's my favorite song!"
+    
+    elif "dance" in msg:
+        reply = "💃 I would dance if I had legs 😂"
+    
+    elif "who are you" in msg:
+        reply = "🤖 I am your Budget AI Assistant."
+    
+    elif "bye" in msg:
+        reply = "👋 Goodbye! Keep saving and see you again."
+    
+    # ---------------- Default Response ----------------
+    else:
+        reply = (
+            "🤖 Sorry, I didn't understand.\n\n"
+            "You can ask:\n"
+            "• What is my total income?\n"
+            "• What is my total expense?\n"
+            "• What is my balance?\n"
+            "• What is my budget?\n"
+            "• What is my top category?\n"
+            "• Give me advice\n"
+            "• Tell me a joke"
+        )
+    
     return jsonify({"reply": reply})
 
 # ================= PDF =================
