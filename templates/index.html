@@ -261,6 +261,53 @@
             border-color: #66b3ff;
         }
 
+        /* AI Prediction Card Styles */
+        .ai-prediction-box {
+            background: #f0f8ff;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 10px;
+            border-left: 4px solid #28a745;
+        }
+
+        .dark .ai-prediction-box {
+            background: #1a2a3a;
+            border-left-color: #66b3ff;
+        }
+
+        .prediction-detail {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .dark .prediction-detail {
+            border-bottom-color: #444;
+        }
+
+        .prediction-detail:last-child {
+            border-bottom: none;
+        }
+
+        .prediction-label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .dark .prediction-label {
+            color: #aaa;
+        }
+
+        .prediction-value {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .dark .prediction-value {
+            color: #66b3ff;
+        }
+
         /* ================= DARK MODE ================= */
         .dark {
             background: #121212;
@@ -405,6 +452,12 @@
                 font-size: 14px;
                 padding: 8px 12px;
             }
+
+            .prediction-detail {
+                flex-direction: column;
+                text-align: center;
+                gap: 5px;
+            }
         }
 
         @media (max-width: 480px) {
@@ -501,24 +554,29 @@
             <h3>Balance: ₹{{ income - expense }}</h3>
         </div>
 
-        <!-- ================= SMART EXPENSE PREDICTION (GRADIENT CARD) ================= -->
-        <div class="prediction-card">
-            <div class="title">🤖 Smart Expense Prediction</div>
-            <h3>
-                Expected Next Month Expense:
-                <span class="prediction-amount">₹{{ predicted_expense }}</span>
-            </h3>
-            <h3>
-                <span class="prediction-status">{{ prediction_message }}</span>
-            </h3>
-        </div>
-
-        <!-- ================= SMART EXPENSE PREDICTION (SIMPLE CARD - STEP 2) ================= -->
+        <!-- ================= AI FINANCIAL PREDICTION (UPDATED) ================= -->
         <div class="card">
-            <div class="title">🤖 Smart Expense Prediction</div>
-            <div class="center" style="font-size: 20px; line-height: 40px;">
-                <b>Expected Next Month Expense:</b> ₹{{ predicted_expense }}<br>
-                <b>Status:</b> {{ prediction_message }}
+            <div class="title">🤖 AI Financial Prediction</div>
+            
+            <div style="padding: 10px; line-height: 2; font-size: 18px;">
+                <div class="prediction-detail">
+                    <span class="prediction-label">💸 Expected Next Month Expense:</span>
+                    <span class="prediction-value">₹{{ future_expense }}</span>
+                </div>
+                
+                <div class="prediction-detail">
+                    <span class="prediction-label">🎯 Recommended Savings Goal:</span>
+                    <span class="prediction-value">₹{{ saving_goal }}</span>
+                </div>
+                
+                <div class="prediction-detail" style="border-bottom: none; font-size: 20px;">
+                    <span style="font-weight: bold;">{{ prediction_status }}</span>
+                </div>
+            </div>
+
+            <div class="ai-prediction-box">
+                🧠 <b>AI Advice:</b><br>
+                {{ prediction_msg }}
             </div>
         </div>
 
@@ -637,10 +695,27 @@
             {% endif %}
         </div>
 
-        <!-- SMART INSIGHTS -->
+        <!-- ================= SMART INSIGHTS (UPDATED) ================= -->
         <div class="card">
             <div class="title">🧠 Smart Insights</div>
-            <div class="insight-text">{{ insight | safe }}</div>
+            
+            <div style="padding: 10px; line-height: 2; font-size: 18px;">
+                <p>📊 <b>Top Spending Category:</b> 
+                    <span style="color: #28a745; font-weight: bold;">{{ top_category }}</span>
+                </p>
+                
+                <p>🍽 <b>Most Expensive Item:</b> 
+                    <span style="color: #dc3545; font-weight: bold;">{{ most_item }}</span>
+                </p>
+                
+                <p>💰 <b>Estimated Monthly Savings:</b> 
+                    <span style="color: #28a745; font-weight: bold;">₹{{ estimated_save }}</span>
+                </p>
+                
+                <p>📈 <b>Total Expenses:</b> 
+                    <span style="color: #6c757d; font-weight: bold;">₹{{ expense }}</span>
+                </p>
+            </div>
         </div>
 
         <!-- SMART SAVING SUGGESTIONS -->
@@ -663,7 +738,7 @@
             <h3 id="reply"></h3>
         </div>
 
-        <!-- TRANSACTION TABLE -->
+        <!-- ================= TRANSACTION TABLE (FIXED) ================= -->
         <div class="card">
             <div class="title">📋 Transactions</div>
 
@@ -679,11 +754,11 @@
 
                 {% for t in transactions %}
                 <tr>
-                    <td>{{ t[2] }}</td>
-                    <td>₹{{ t[3] }}</td>
-                    <td>{{ t[5] }}</td>
-                    <td>{{ t[7] }}</td>
-                    <td>{{ t[6] }}</td>
+                    <td>{{ t[2] }}</td>   <!-- Title -->
+                    <td>₹{{ t[3] }}</td>  <!-- Amount -->
+                    <td>{{ t[5] }}</td>   <!-- Category -->
+                    <td>{{ t[6] }}</td>   <!-- Item -->
+                    <td>{{ t[7] }}</td>   <!-- Date -->
                     <td>
                         <a class="action" href="/delete/{{ t[0] }}">
                             ❌

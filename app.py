@@ -288,19 +288,23 @@ def home():
     user_email = user_data[0] if user_data else ""
     user_photo = user_data[1] if user_data and user_data[1] else "default.png"
     
-    # ADD TRANSACTION
+    # ================= ADD TRANSACTION (FIXED) =================
     if request.method == "POST":
         title = request.form['title']
         amount = float(request.form['amount'])
-        t_type = request.form['type']
+        ttype = request.form['type']
         category = request.form['category']
-        item = request.form['item']
+        item = request.form.get('item', "")
         date = request.form['date']
+        
+        # Salary special handling
+        if ttype == "income":
+            item = "Income Source"
         
         cursor.execute("""
             INSERT INTO transactions (username,title,amount,type,category,item,date)
             VALUES(?,?,?,?,?,?,?)
-        """, (username,title,amount,t_type,category,item,date))
+        """, (username, title, amount, ttype, category, item, date))
         conn.commit()
     
     # FETCH DATA
@@ -334,16 +338,22 @@ def home():
         
         monthly_data[month] = monthly_data.get(month, 0) + abs(amt)
     
-    # ================= SMART EXPENSE PREDICTION =================
-    predicted_expense = round(expense + (expense * 0.1), 2)
+    # ================= AI EXPENSE PREDICTION =================
+    future_expense = int(expense * 1.10)
     
-    prediction_message = "Spending looks stable ✅"
+    if expense < income:
+        prediction_status = "📈 Good Financial Growth"
+        prediction_msg = "Your savings pattern is improving. Keep maintaining spending discipline."
     
-    if expense > (budget_limit * 0.8):
-        prediction_message = "⚠ Food or daily spending may increase"
+    elif expense == income:
+        prediction_status = "⚠ Balanced Spending"
+        prediction_msg = "Income and expenses are equal. Try increasing savings."
     
-    if total > 5000:
-        prediction_message = "📈 Savings trend improving"
+    else:
+        prediction_status = "🚨 High Expense Alert"
+        prediction_msg = "Expenses are increasing. Reduce unnecessary spending."
+    
+    saving_goal = int(income * 0.20)
     
     # ================= TOP CATEGORY =================
     top_category = "None"
@@ -355,85 +365,200 @@ def home():
     if expense > budget_limit:
         warning = "⚠ Budget Exceeded"
     
-    # ================= SMART SUGGESTIONS =================
+    # ================= SMART AI SAVING SYSTEM =================
+    smart_items = {
+        # Morning Foods
+        "idli": {
+            "alternative": "Home-made Idli 🥣",
+            "reason": "Home food usually costs less",
+            "benefit": "Healthy breakfast + lower spending",
+            "motivation": "Healthy mornings create healthy savings 🌞"
+        },
+        "dosai": {
+            "alternative": "Idli 🥣",
+            "reason": "Less oil and lower cost",
+            "benefit": "Healthy and saves money",
+            "motivation": "Small savings create big results 💪"
+        },
+        "poori": {
+            "alternative": "Chapathi 🌮",
+            "reason": "Poori contains more oil",
+            "benefit": "Healthier option",
+            "motivation": "Choose smart food choices 🏃"
+        },
+        "pongal": {
+            "alternative": "Ragi Porridge 🌾",
+            "reason": "Nutritious and economical",
+            "benefit": "Energy + savings",
+            "motivation": "Healthy body, healthy wallet ✨"
+        },
+        # Afternoon Foods
+        "briyani": {
+            "alternative": "Meals 🍛",
+            "reason": "Briyani often costs more",
+            "benefit": "Balanced food + save money",
+            "motivation": "Reduce cost without losing satisfaction 😄"
+        },
+        "biryani": {
+            "alternative": "Meals 🍛",
+            "reason": "Briyani often costs more",
+            "benefit": "Balanced food + save money",
+            "motivation": "Reduce cost without losing satisfaction 😄"
+        },
+        "fried rice": {
+            "alternative": "Lemon Rice 🍋",
+            "reason": "Simple foods cost less",
+            "benefit": "Save money + lighter food",
+            "motivation": "Simple habits grow savings 💰"
+        },
+        "meals": {
+            "alternative": "Mini Meals 🍽",
+            "reason": "Large meals increase spending",
+            "benefit": "Reduce unnecessary expense",
+            "motivation": "Spend wisely 🎯"
+        },
+        # Evening Foods
+        "chips": {
+            "alternative": "Fruits 🍎",
+            "reason": "Chips are processed snacks",
+            "benefit": "Better nutrition + savings",
+            "motivation": "Healthy snacks, healthy life 🌟"
+        },
+        "tea": {
+            "alternative": "Home-made Tea ☕",
+            "reason": "Daily outside tea adds up",
+            "benefit": "Reduce repeated expenses",
+            "motivation": "₹20/day ≈ ₹600/month 💰"
+        },
+        "coffee": {
+            "alternative": "Milk/Home Coffee 🥛",
+            "reason": "Outside coffee is expensive",
+            "benefit": "Lower cost",
+            "motivation": "Save little, gain more 🚀"
+        },
+        # Night Foods
+        "parotta": {
+            "alternative": "Chapathi 🌮",
+            "reason": "Heavy oily foods affect health",
+            "benefit": "Better digestion + savings",
+            "motivation": "Healthy nights matter 🌙"
+        },
+        "shawarma": {
+            "alternative": "Chapathi Roll 🌯",
+            "reason": "Fast food costs more",
+            "benefit": "Healthy and economical",
+            "motivation": "Smart food, smart future 💪"
+        },
+        # Entertainment
+        "movie": {
+            "alternative": "Watch OTT 📺",
+            "reason": "Theatre ticket + snacks increase spending",
+            "benefit": "Lower entertainment cost",
+            "motivation": "Enjoy more, spend less 🎬"
+        },
+        "theatre": {
+            "alternative": "Watch with OTT Subscription 📺",
+            "reason": "Travel + tickets + snacks increase expense",
+            "benefit": "Entertainment at lower cost",
+            "motivation": "Entertainment + savings balance 💰"
+        },
+        "popcorn": {
+            "alternative": "Home Snacks 🍿",
+            "reason": "Theatre snacks are expensive",
+            "benefit": "Same enjoyment with lower cost",
+            "motivation": "Small snack savings become big savings 😄"
+        },
+        # Daily Usage
+        "water bottle": {
+            "alternative": "Carry Water Bottle 🚰",
+            "reason": "Daily purchases increase cost",
+            "benefit": "Reduce daily expenses",
+            "motivation": "Daily savings become monthly savings 💧"
+        },
+        "petrol": {
+            "alternative": "Public Transport 🚌",
+            "reason": "Fuel costs increase over time",
+            "benefit": "Reduce travel expenses",
+            "motivation": "Travel smart 🌍"
+        },
+        "mobile recharge": {
+            "alternative": "Long-term Plan 📱",
+            "reason": "Frequent recharges cost more",
+            "benefit": "Better value",
+            "motivation": "Spend once and save more 💡"
+        }
+    }
+    
+    # ================= GENERATE SMART SUGGESTIONS =================
     suggestions = []
     
-    food_swap = {
-        "dosai": "Idli",
-        "poori": "Idli",
-        "pizza": "Home food",
-        "burger": "Sandwich",
-        "chips": "Fruits",
-        "fried rice": "Meals",
-        "biryani": "Home rice"
-    }
-    
-    travel_swap = {
-        "bike": "Bus",
-        "petrol": "Bus",
-        "car": "Train",
-        "cab": "Bus"
-    }
-    
     for t in transactions:
-        category = str(t[5]).lower()
-        item = str(t[7]).lower()   # IMPORTANT FIX - item column
-        amount = t[3]
+        # Try both t[6] and t[7] for item (depending on schema)
+        try:
+            item = str(t[6]).lower() if len(t) > 6 else str(t[7]).lower()
+        except:
+            item = ""
         
-        if category == "food":
-            save = round(amount * 0.20)
-            
-            # Line 1 - High expense warning
-            suggestions.append(
-                f"🍽 {item.title()}: Food expense high → Save ₹{save}"
-            )
-            
-            # Line 2 - Alternative suggestion
-            if item in food_swap:
-                suggestions.append(
-                    f"💡 {item.title()} ku pathila {food_swap[item]} try pannunga"
-                )
+        amount = float(t[3])
+        date = t[7] if len(t) > 7 else t[6]
         
-        elif category == "travel":
-            save = round(amount * 0.15)
+        save_money = int(amount * 0.20)
+        
+        if item in smart_items:
+            data = smart_items[item]
             
-            suggestions.append(
-                f"⛽ {item.title()}: Travel expense high → Save ₹{save}"
-            )
-            
-            if item in travel_swap:
-                suggestions.append(
-                    f"💡 {item.title()} ku pathila {travel_swap[item]} use pannunga"
-                )
+            msg = f"""
+💡 {date}
+
+{item.title()} → Try {data['alternative']}
+
+📌 Reason:
+{data['reason']}
+
+✅ Benefit:
+{data['benefit']}
+
+💰 Expected Saving:
+₹{save_money}
+
+🔥 Motivation:
+{data['motivation']}
+"""
+            suggestions.append(msg)
     
     if not suggestions:
-        suggestions.append("✅ Spending looks balanced")
+        suggestions.append("✅ Spending looks balanced. Keep saving! 💪")
     
-    # ================= SMART INSIGHTS =================
-    category_total = defaultdict(float)
-    item_total = defaultdict(float)
+    # ================= SMART INSIGHTS (UPDATED) =================
+    category_total = {}
+    most_expense = 0
+    most_item = "None"
     
     for t in transactions:
+        amount = float(t[3])
+        ttype = t[4]
         category = t[5]
-        item = t[7]  # item column
-        amount = t[3]
+        item = t[6]
         
-        category_total[category] += amount
-        item_total[item] += amount
+        # Ignore income for spending analysis
+        if ttype == "expense":
+            category_total[category] = category_total.get(category, 0) + amount
+            
+            if amount > most_expense:
+                most_expense = amount
+                most_item = item
     
-    # TOP CATEGORY from insights
-    top_spent_category = max(category_total, key=category_total.get) if category_total else "None"
+    # Top spending category
+    top_spent_category = "None"
+    if category_total:
+        top_spent_category = max(category_total, key=category_total.get)
     
-    # TOP ITEM
-    top_item = max(item_total, key=item_total.get) if item_total else "None"
-    
-    # TOTAL SAVINGS ESTIMATE (simple logic)
-    estimated_savings = expense * 0.2
+    estimated_save = int(expense * 0.10)
     
     insight = f"""
 📊 Top Spending Category: {top_spent_category}
-🍽 Most Expensive Item: {top_item}
-💰 Estimated Monthly Savings: ₹{round(estimated_savings)}
+🍽 Most Expensive Item: {most_item} (₹{most_expense})
+💰 Estimated Monthly Savings: ₹{estimated_save}
 """
     
     # ================= PIE CHART =================
@@ -482,10 +607,15 @@ def home():
         progress=50,
         advice="Track your spending regularly",
         top_category=top_category,
+        top_spent_category=top_spent_category,
+        most_item=most_item,
+        estimated_save=estimated_save,
         suggestions=suggestions,
         insight=insight,
-        predicted_expense=predicted_expense,
-        prediction_message=prediction_message,
+        future_expense=future_expense,
+        prediction_status=prediction_status,
+        prediction_msg=prediction_msg,
+        saving_goal=saving_goal,
         category_data=category_data
     )
 
