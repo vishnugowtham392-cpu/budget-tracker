@@ -580,13 +580,13 @@
             </div>
         </div>
 
-        <!-- ================= ADD TRANSACTION (UPDATED - Item only for Expense) ================= -->
+        <!-- ================= ADD TRANSACTION (Purpose instead of Title) ================= -->
         <div class="card">
             <div class="title">➕ Add Transaction</div>
 
             <form method="POST">
-                <!-- Title -->
-                <input type="text" name="title" placeholder="Title (e.g., Morning Food, Salary)" required>
+                <!-- Purpose (was Title) -->
+                <input type="text" name="title" placeholder="Purpose (e.g., Morning Food, Salary)" required>
 
                 <!-- Amount -->
                 <input type="number" name="amount" placeholder="Amount (e.g., 500)" step="0.01" required>
@@ -754,7 +754,7 @@
 
             <table>
                 <tr>
-                    <th>Title</th>
+                    <th>Purpose</th>
                     <th>Amount</th>
                     <th>Category</th>
                     <th>Item</th>
@@ -764,7 +764,7 @@
 
                 {% for t in transactions %}
                 <tr>
-                    <td>{{ t[2] }}</td>   <!-- Title -->
+                    <td>{{ t[2] }}</td>   <!-- Purpose -->
                     <td>₹{{ t[3] }}</td>  <!-- Amount -->
                     <td>{{ t[5] }}</td>   <!-- Category -->
                     <td>{{ t[6] }}</td>   <!-- Item -->
@@ -870,4 +870,4 @@
     </script>
 
 </body>
-</html> 
+</html>
