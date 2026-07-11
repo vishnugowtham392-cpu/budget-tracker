@@ -14,57 +14,26 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
 
-# ================= DATABASE IMPORTS (Conditional) =================
-try:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
-    POSTGRES_AVAILABLE = True
-    print("✅ psycopg2 loaded successfully")
-except ImportError as e:
-    POSTGRES_AVAILABLE = False
-    print(f"⚠️ psycopg2 not installed: {e} - using SQLite only")
-
 app = Flask(__name__)
 app.secret_key = "budgettracker"
 
-# ================= ERROR HANDLING =================
-@app.errorhandler(Exception)
-def handle_exception(e):
-    """Handle all exceptions and return error message"""
-    print(f"❌ Error: {str(e)}")
-    print(traceback.format_exc())
-    return f"Internal Server Error: {str(e)}", 500
+# ================= DATABASE CONNECTION (SQLITE ONLY) =================
+# Get the absolute path to the database
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE_PATH = os.path.join(BASE_DIR, "database", "budget.db")
 
-# ================= DATABASE CONNECTION =================
 def get_db_connection():
-    """Get database connection - PostgreSQL or SQLite"""
-    database_url = os.environ.get('DATABASE_URL')
-    
-    # Log the database URL (masked for security)
-    if database_url:
-        print(f"✅ DATABASE_URL found: {database_url[:20]}...")
-    else:
-        print("⚠️ DATABASE_URL not found - using SQLite")
-    
-    if database_url and POSTGRES_AVAILABLE:
-        # PostgreSQL for production (Render)
-        try:
-            conn = psycopg2.connect(database_url)
-            print("✅ Connected to PostgreSQL successfully!")
-            return conn
-        except Exception as e:
-            print(f"❌ PostgreSQL connection failed: {e}")
-            print("⚠️ Falling back to SQLite")
-            # Fallback to SQLite
-            conn = sqlite3.connect("database/budget.db")
-            conn.row_factory = sqlite3.Row
-            return conn
-    else:
-        # SQLite for local development
-        print("✅ Using SQLite database")
-        conn = sqlite3.connect("database/budget.db")
+    """Get SQLite database connection"""
+    try:
+        # Ensure database directory exists
+        os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
+        
+        conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
         return conn
+    except Exception as e:
+        print(f"❌ Database connection error: {e}")
+        raise
 
 def init_db():
     """Initialize database tables"""
@@ -72,61 +41,35 @@ def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Check if using PostgreSQL or SQLite
-        is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
+        # Create users table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT,
+                email TEXT,
+                photo TEXT DEFAULT 'default.png'
+            )
+        """)
         
-        if is_postgres:
-            print("✅ Initializing PostgreSQL tables")
-            # PostgreSQL syntax
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users(
-                    id SERIAL PRIMARY KEY,
-                    username TEXT UNIQUE,
-                    password TEXT,
-                    email TEXT,
-                    photo TEXT DEFAULT 'default.png'
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS transactions(
-                    id SERIAL PRIMARY KEY,
-                    username TEXT,
-                    title TEXT,
-                    amount REAL,
-                    type TEXT,
-                    category TEXT,
-                    item TEXT,
-                    date TEXT
-                )
-            """)
-        else:
-            print("✅ Initializing SQLite tables")
-            # SQLite syntax
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE,
-                    password TEXT,
-                    email TEXT,
-                    photo TEXT DEFAULT 'default.png'
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS transactions(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT,
-                    title TEXT,
-                    amount REAL,
-                    type TEXT,
-                    category TEXT,
-                    item TEXT,
-                    date TEXT
-                )
-            """)
+        # Create transactions table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transactions(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                title TEXT,
+                amount REAL,
+                type TEXT,
+                category TEXT,
+                item TEXT,
+                date TEXT
+            )
+        """)
         
         conn.commit()
         conn.close()
         print("✅ Database initialized successfully!")
+        print(f"📁 Database path: {DATABASE_PATH}")
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         print(traceback.format_exc())
@@ -146,20 +89,23 @@ mail = Mail(app)
 budget_limit = 5000
 
 # ================= FOLDERS =================
-os.makedirs("database", exist_ok=True)
-os.makedirs("static", exist_ok=True)
-os.makedirs("uploads", exist_ok=True)
-os.makedirs("static/profiles", exist_ok=True)  # For profile photos
-os.makedirs("static/uploads", exist_ok=True)   # For uploads
+os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, "static"), exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, "uploads"), exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, "static", "profiles"), exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, "static", "uploads"), exist_ok=True)
 
 # ================= DATABASE INIT =================
-try:
-    init_db()
-except Exception as e:
-    print(f"❌ Failed to initialize database: {e}")
-    print("⚠️ Continuing with SQLite fallback...")
-    # Force SQLite fallback
-    os.environ.pop('DATABASE_URL', None)
+init_db()
+
+# ================= ERROR HANDLING =================
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle all exceptions and return error message"""
+    error_msg = str(e)
+    print(f"❌ Error: {error_msg}")
+    print(traceback.format_exc())
+    return f"Error: {error_msg}", 500
 
 # ================= EMAIL WARNING =================
 def send_warning_email(email, username, expense):
@@ -179,7 +125,7 @@ Please reduce spending.
     except Exception as e:
         print("Mail Error:", e)
 
-# ================= SIGNUP (UPDATED WITH FLASH MESSAGES) =================
+# ================= SIGNUP =================
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == "POST":
@@ -194,30 +140,25 @@ def signup():
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
-            
-            if is_postgres:
-                cursor.execute("""
-                    INSERT INTO users(username, password, email)
-                    VALUES(%s, %s, %s)
-                """, (username, password, email))
-            else:
-                cursor.execute("""
-                    INSERT INTO users(username, password, email)
-                    VALUES(?, ?, ?)
-                """, (username, password, email))
+            cursor.execute("""
+                INSERT INTO users(username, password, email)
+                VALUES(?, ?, ?)
+            """, (username, password, email))
             conn.commit()
             flash("Account created successfully! Please login.")
             conn.close()
             return redirect('/login')
+        except sqlite3.IntegrityError:
+            flash("Username already exists! Please choose another.")
+            return render_template("signup.html")
         except Exception as e:
             print(f"Signup error: {e}")
-            flash("Username already exists! Please choose another.")
+            flash("An error occurred. Please try again.")
             return render_template("signup.html")
     
     return render_template("signup.html")
 
-# ================= LOGIN (UPDATED WITH ERROR HANDLING) =================
+# ================= LOGIN =================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
@@ -231,19 +172,13 @@ def login():
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
-                
-                # Check if user exists
-                if is_postgres:
-                    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
-                else:
-                    cursor.execute("SELECT * FROM users WHERE username=?", (username,))
+                cursor.execute("SELECT * FROM users WHERE username=?", (username,))
                 user = cursor.fetchone()
                 conn.close()
                 
                 if user:
-                    # Check password
-                    if user[2] == password:  # password is at index 2
+                    # Check password (index 2)
+                    if user[2] == password:
                         session['user'] = username
                         return redirect('/')
                     else:
@@ -269,7 +204,7 @@ def set_limit():
     budget_limit = int(request.form['limit'])
     return redirect('/')
 
-# ================= PROFILE SETTINGS (UPDATED WITH PHOTO UPLOAD) =================
+# ================= PROFILE SETTINGS =================
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
     if 'user' not in session:
@@ -278,7 +213,6 @@ def profile():
     username = session['user']
     conn = get_db_connection()
     cur = conn.cursor()
-    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
     
     if request.method == "POST":
         new_username = request.form['username'].strip()
@@ -293,58 +227,34 @@ def profile():
             filename = secure_filename(photo.filename)
             photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             
-            # Update with photo
-            if is_postgres:
-                cur.execute("""
-                    UPDATE users
-                    SET username=%s,
-                        email=%s,
-                        password=%s,
-                        photo=%s
-                    WHERE username=%s
-                """, (new_username, email, password, filename, username))
-            else:
-                cur.execute("""
-                    UPDATE users
-                    SET username=?,
-                        email=?,
-                        password=?,
-                        photo=?
-                    WHERE username=?
-                """, (new_username, email, password, filename, username))
+            cur.execute("""
+                UPDATE users
+                SET username=?,
+                    email=?,
+                    password=?,
+                    photo=?
+                WHERE username=?
+            """, (new_username, email, password, filename, username))
         else:
-            # Update without photo
-            if is_postgres:
-                cur.execute("""
-                    UPDATE users
-                    SET username=%s,
-                        email=%s,
-                        password=%s
-                    WHERE username=%s
-                """, (new_username, email, password, username))
-            else:
-                cur.execute("""
-                    UPDATE users
-                    SET username=?,
-                        email=?,
-                        password=?
-                    WHERE username=?
-                """, (new_username, email, password, username))
+            cur.execute("""
+                UPDATE users
+                SET username=?,
+                    email=?,
+                    password=?
+                WHERE username=?
+            """, (new_username, email, password, username))
         
         conn.commit()
         session['user'] = new_username
         username = new_username
     
-    if is_postgres:
-        cur.execute("SELECT * FROM users WHERE username=%s", (username,))
-    else:
-        cur.execute("SELECT * FROM users WHERE username=?", (username,))
+    cur.execute("SELECT * FROM users WHERE username=?", (username,))
     user = cur.fetchone()
     conn.close()
     
     return render_template("profile.html", user=user)
 
-# ================= UPLOAD CSV (SAFE VERSION) =================
+# ================= UPLOAD CSV =================
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'user' not in session:
@@ -364,20 +274,16 @@ def upload():
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
     
     with open(path, 'r') as f:
         reader = csv.reader(f)
-        next(reader)  # skip header
+        next(reader)
         
         for row in reader:
-            # Safe check: skip rows with missing columns
             if len(row) < 6:
                 continue
             
             title = row[0]
-            
-            # Safe amount conversion
             try:
                 amount = float(row[1])
             except:
@@ -388,18 +294,11 @@ def upload():
             item = row[4]
             date = row[5]
             
-            if is_postgres:
-                cursor.execute("""
-                    INSERT INTO transactions
-                    (username,title,amount,type,category,item,date)
-                    VALUES(%s,%s,%s,%s,%s,%s,%s)
-                """, (session['user'], title, amount, t_type, category, item, date))
-            else:
-                cursor.execute("""
-                    INSERT INTO transactions
-                    (username,title,amount,type,category,item,date)
-                    VALUES(?,?,?,?,?,?,?)
-                """, (session['user'], title, amount, t_type, category, item, date))
+            cursor.execute("""
+                INSERT INTO transactions
+                (username,title,amount,type,category,item,date)
+                VALUES(?,?,?,?,?,?,?)
+            """, (session['user'], title, amount, t_type, category, item, date))
     
     conn.commit()
     conn.close()
@@ -415,14 +314,10 @@ def home():
     username = session['user']
     conn = get_db_connection()
     cursor = conn.cursor()
-    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
     
     # GET USER PROFILE DATA
     try:
-        if is_postgres:
-            cursor.execute("SELECT email, photo FROM users WHERE username=%s", (username,))
-        else:
-            cursor.execute("SELECT email, photo FROM users WHERE username=?", (username,))
+        cursor.execute("SELECT email, photo FROM users WHERE username=?", (username,))
         user_data = cursor.fetchone()
         user_email = user_data[0] if user_data else ""
         user_photo = user_data[1] if user_data and user_data[1] else "default.png"
@@ -431,15 +326,12 @@ def home():
         user_email = ""
         user_photo = "default.png"
     
-    # ================= ADD TRANSACTION (UPDATED WITH SAFE CATEGORY) =================
+    # ================= ADD TRANSACTION =================
     if request.method == "POST":
         title = request.form['title']
         amount = float(request.form['amount'])
         ttype = request.form['type']
         
-        # ================= SAFE CATEGORY HANDLING =================
-        # If income, category is "Income"
-        # If expense, get the selected category
         if ttype == "income":
             category = "Income"
             item = "Income Source"
@@ -449,34 +341,22 @@ def home():
         
         date = request.form['date']
         
-        if is_postgres:
-            cursor.execute("""
-                INSERT INTO transactions (username,title,amount,type,category,item,date)
-                VALUES(%s,%s,%s,%s,%s,%s,%s)
-            """, (username, title, amount, ttype, category, item, date))
-        else:
-            cursor.execute("""
-                INSERT INTO transactions (username,title,amount,type,category,item,date)
-                VALUES(?,?,?,?,?,?,?)
-            """, (username, title, amount, ttype, category, item, date))
+        cursor.execute("""
+            INSERT INTO transactions (username,title,amount,type,category,item,date)
+            VALUES(?,?,?,?,?,?,?)
+        """, (username, title, amount, ttype, category, item, date))
         conn.commit()
     
     # FETCH DATA
-    if is_postgres:
-        cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
-    else:
-        cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
+    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     transactions = cursor.fetchall()
     
     total = 0
     income = 0
     expense = 0
     monthly_data = {}
-    
-    # ================= CATEGORY ANALYTICS =================
     category_data = {}
     
-    # SAFE FIX: Handle both old and new database schemas
     for t in transactions:
         amt = t[3]
         ttype = t[4]
@@ -490,7 +370,6 @@ def home():
             income += amt
         else:
             expense += amt
-            # category calculation only for expenses
             category_data[category] = category_data.get(category, 0) + amt
         
         monthly_data[month] = monthly_data.get(month, 0) + abs(amt)
@@ -501,11 +380,9 @@ def home():
     if expense < income:
         prediction_status = "📈 Good Financial Growth"
         prediction_msg = "Your savings pattern is improving. Keep maintaining spending discipline."
-    
     elif expense == income:
         prediction_status = "⚠ Balanced Spending"
         prediction_msg = "Income and expenses are equal. Try increasing savings."
-    
     else:
         prediction_status = "🚨 High Expense Alert"
         prediction_msg = "Expenses are increasing. Reduce unnecessary spending."
@@ -522,9 +399,37 @@ def home():
     if expense > budget_limit:
         warning = "⚠ Budget Exceeded"
     
-    # ================= SMART AI SAVING SYSTEM (COMPLETE) =================
+    # ================= SMART INSIGHTS =================
+    category_total = {}
+    most_expense = 0
+    most_item = "None"
+    
+    for t in transactions:
+        amount = float(t[3])
+        ttype = t[4]
+        category = t[5]
+        item = t[6] if len(t) > 6 else ""
+        
+        if ttype == "expense":
+            category_total[category] = category_total.get(category, 0) + amount
+            if amount > most_expense:
+                most_expense = amount
+                most_item = item if item else "Unknown"
+    
+    top_spent_category = "None"
+    if category_total:
+        top_spent_category = max(category_total, key=category_total.get)
+    
+    estimated_save = int(expense * 0.10)
+    
+    insight = f"""
+📊 Top Spending Category: {top_spent_category}
+🍽 Most Expensive Item: {most_item} (₹{most_expense})
+💰 Estimated Monthly Savings: ₹{estimated_save}
+"""
+    
+    # ================= SMART AI SAVING SYSTEM =================
     smart_items = {
-        # ================= MORNING FOODS =================
         "idli": {
             "alternative": "Home-made Idli 🥣",
             "reason": "Home food usually costs less",
@@ -597,8 +502,6 @@ def home():
             "benefit": "Fresh and healthy food",
             "motivation": "Fresh food is always better 🏠"
         },
-
-        # ================= AFTERNOON FOODS =================
         "briyani": {
             "alternative": "Meals 🍛",
             "reason": "Briyani often costs more",
@@ -653,8 +556,6 @@ def home():
             "benefit": "Fresh and healthy",
             "motivation": "Home food is always fresh 🏠"
         },
-
-        # ================= EVENING SNACKS =================
         "chips": {
             "alternative": "Fruits 🍎",
             "reason": "Chips are processed snacks",
@@ -703,8 +604,6 @@ def home():
             "benefit": "Healthy + savings",
             "motivation": "Eat healthy, stay fit 💪"
         },
-
-        # ================= DRINKS =================
         "tea": {
             "alternative": "Home-made Tea ☕",
             "reason": "Daily outside tea adds up",
@@ -753,8 +652,6 @@ def home():
             "benefit": "Save money + healthy",
             "motivation": "Make milkshake at home 🏠"
         },
-
-        # ================= NIGHT FOODS =================
         "parotta": {
             "alternative": "Chapathi 🌮",
             "reason": "Heavy oily foods affect health",
@@ -791,8 +688,6 @@ def home():
             "benefit": "Lower cost + healthy",
             "motivation": "Choose affordable protein 💰"
         },
-
-        # ================= ENTERTAINMENT =================
         "movie": {
             "alternative": "Watch OTT 📺",
             "reason": "Theatre ticket + snacks increase spending",
@@ -853,8 +748,6 @@ def home():
             "benefit": "Save on subscriptions",
             "motivation": "Watch content wisely 📺"
         },
-
-        # ================= TRANSPORTATION =================
         "petrol": {
             "alternative": "Public Transport 🚌",
             "reason": "Fuel costs increase over time",
@@ -921,8 +814,6 @@ def home():
             "benefit": "Save money on travel",
             "motivation": "Train journeys are scenic and cheap 🚂"
         },
-
-        # ================= DAILY USAGE =================
         "water bottle": {
             "alternative": "Carry Water Bottle 🚰",
             "reason": "Daily purchases increase cost",
@@ -965,8 +856,6 @@ def home():
             "benefit": "Save money",
             "motivation": "Use efficient cooking 🔥"
         },
-
-        # ================= GROCERY =================
         "oil": {
             "alternative": "Buy in Bulk 🛒",
             "reason": "Small packets cost more",
@@ -1003,8 +892,6 @@ def home():
             "benefit": "Save money",
             "motivation": "Bulk buying saves money 💰"
         },
-
-        # ================= SHOPPING =================
         "clothes": {
             "alternative": "Season Sale Shopping 👕",
             "reason": "Regular prices are high",
@@ -1041,8 +928,6 @@ def home():
             "benefit": "Save on shopping",
             "motivation": "Sale shopping saves money 🛍"
         },
-
-        # ================= ELECTRONICS =================
         "mobile": {
             "alternative": "Buy During Sale 📱",
             "reason": "Regular prices are higher",
@@ -1073,8 +958,6 @@ def home():
             "benefit": "Save money",
             "motivation": "Wait for sale to save 💰"
         },
-
-        # ================= MEDICAL =================
         "medicine": {
             "alternative": "Generic Medicine 💊",
             "reason": "Branded medicines cost more",
@@ -1093,8 +976,6 @@ def home():
             "benefit": "Save on medical bills",
             "motivation": "Government hospitals are affordable 🏥"
         },
-
-        # ================= BEAUTY & GROOMING =================
         "salon": {
             "alternative": "Home Grooming 💇",
             "reason": "Salon visits are expensive",
@@ -1113,8 +994,6 @@ def home():
             "benefit": "Save money",
             "motivation": "Learn home makeup 💄"
         },
-
-        # ================= EDUCATION =================
         "books": {
             "alternative": "Library Books 📚",
             "reason": "New books are expensive",
@@ -1133,8 +1012,6 @@ def home():
             "benefit": "Save money on education",
             "motivation": "Learn online for free 🎓"
         },
-
-        # ================= GYM & FITNESS =================
         "gym": {
             "alternative": "Home Workout 💪",
             "reason": "Gym membership is expensive",
@@ -1147,8 +1024,6 @@ def home():
             "benefit": "Save money + natural",
             "motivation": "Natural food is best 🥗"
         },
-
-        # ================= TRAVEL =================
         "hotel": {
             "alternative": "Hostel/Home Stay 🏠",
             "reason": "Hotels are expensive",
@@ -1173,7 +1048,6 @@ def home():
     suggestions = []
     
     for t in transactions:
-        # Get item from transaction
         try:
             item = str(t[6]).lower() if len(t) > 6 else ""
         except:
@@ -1182,97 +1056,53 @@ def home():
         amount = float(t[3])
         date = t[7] if len(t) > 7 else t[6]
         
-        save_money = int(amount * 0.20)
-        
         if item in smart_items:
             data = smart_items[item]
+            save_money = int(amount * 0.20)
             
             msg = f"""
 💡 {date}
 
 {item.title()} → Try {data['alternative']}
 
-📌 Reason:
-{data['reason']}
-
-✅ Benefit:
-{data['benefit']}
-
-💰 Expected Saving:
-₹{save_money}
-
-🔥 Motivation:
-{data['motivation']}
+📌 Reason: {data['reason']}
+✅ Benefit: {data['benefit']}
+💰 Expected Saving: ₹{save_money}
+🔥 Motivation: {data['motivation']}
 """
             suggestions.append(msg)
     
     if not suggestions:
         suggestions.append("✅ Spending looks balanced. Keep saving! 💪")
     
-    # ================= SMART INSIGHTS =================
-    category_total = {}
-    most_expense = 0
-    most_item = "None"
-    
-    for t in transactions:
-        amount = float(t[3])
-        ttype = t[4]
-        category = t[5]
-        item = t[6] if len(t) > 6 else ""
-        
-        # Ignore income for spending analysis
-        if ttype == "expense":
-            category_total[category] = category_total.get(category, 0) + amount
-            
-            if amount > most_expense:
-                most_expense = amount
-                most_item = item if item else "Unknown"
-    
-    # Top spending category
-    top_spent_category = "None"
-    if category_total:
-        top_spent_category = max(category_total, key=category_total.get)
-    
-    estimated_save = int(expense * 0.10)
-    
-    insight = f"""
-📊 Top Spending Category: {top_spent_category}
-🍽 Most Expensive Item: {most_item} (₹{most_expense})
-💰 Estimated Monthly Savings: ₹{estimated_save}
-"""
-    
-    # ================= PIE CHART =================
-    plt.figure()
-    plt.pie([income if income > 0 else 1, expense], labels=["Income", "Expense"], autopct="%1.1f%%")
-    plt.savefig("static/chart.png")
-    plt.close()
-    
-    # ================= MONTHLY CHART =================
-    plt.figure(figsize=(8,5))
-    months = sorted(monthly_data.keys())
-    values = [monthly_data[m] for m in months]
-    plt.bar(months, values)
-    plt.title("Monthly Expense Analysis")
-    plt.xticks(rotation=30)
-    plt.tight_layout()
-    plt.savefig("static/monthly_chart.png", bbox_inches='tight')
-    plt.close()
-    
-    # ================= CATEGORY CHART =================
-    if category_data:
+    # ================= CHARTS =================
+    try:
         plt.figure()
-        plt.pie(
-            category_data.values(),
-            labels=category_data.keys(),
-            autopct="%1.1f%%"
-        )
-        plt.title("Category Analytics")
-        plt.savefig("static/category_chart.png")
+        plt.pie([income if income > 0 else 1, expense], labels=["Income", "Expense"], autopct="%1.1f%%")
+        plt.savefig("static/chart.png")
         plt.close()
+        
+        plt.figure(figsize=(8,5))
+        months = sorted(monthly_data.keys())
+        values = [monthly_data[m] for m in months]
+        plt.bar(months, values)
+        plt.title("Monthly Expense Analysis")
+        plt.xticks(rotation=30)
+        plt.tight_layout()
+        plt.savefig("static/monthly_chart.png", bbox_inches='tight')
+        plt.close()
+        
+        if category_data:
+            plt.figure()
+            plt.pie(category_data.values(), labels=category_data.keys(), autopct="%1.1f%%")
+            plt.title("Category Analytics")
+            plt.savefig("static/category_chart.png")
+            plt.close()
+    except Exception as e:
+        print(f"Chart generation error: {e}")
     
     conn.close()
     
-    # ================= RENDER TEMPLATE WITH ALL DATA =================
     return render_template(
         "index.html",
         username=username,
@@ -1299,21 +1129,15 @@ def home():
         category_data=category_data
     )
 
-# ================= AI CHATBOT (ENHANCED) =================
+# ================= CHATBOT =================
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
     msg = request.form['message'].lower().strip()
-    
     username = session['user']
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
-    
-    if is_postgres:
-        cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
-    else:
-        cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
+    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     transactions = cursor.fetchall()
     conn.close()
     
@@ -1339,108 +1163,21 @@ def chatbot():
     else:
         top_category = "No expenses"
     
-    # ---------------- Finance Questions ----------------
     if "total income" in msg:
         reply = f"💰 Your total income is ₹{total_income}"
-    
     elif "total expense" in msg:
         reply = f"💸 Your total expense is ₹{total_expense}"
-    
     elif "balance" in msg:
         reply = f"🏦 Your current balance is ₹{balance}"
-    
     elif "budget" in msg:
         remaining = budget_limit - total_expense
         reply = f"📊 Remaining budget: ₹{remaining}"
-    
     elif "top category" in msg or "highest expense" in msg:
         reply = f"📈 Highest spending category: {top_category}"
-    
-    elif "save money" in msg:
-        reply = "💡 Spend wisely, avoid unnecessary shopping, and track every expense."
-    
-    elif "advice" in msg:
-        reply = "📊 Save at least 20% of your monthly income."
-    
-    # ---------------- Greetings ----------------
-    elif msg in ["hi", "hello", "hey"]:
+    elif "hi" in msg or "hello" in msg or "hey" in msg:
         reply = f"👋 Hello {username}! Welcome back."
-    
-    elif "how are you" in msg:
-        reply = "😊 I'm doing great! Ready to help with your budget."
-    
-    elif "good morning" in msg:
-        reply = "🌞 Good Morning! Have a productive day."
-    
-    elif "good night" in msg:
-        reply = "🌙 Good Night! Don't forget to save money."
-    
-    elif "thank" in msg:
-        reply = "😊 You're welcome! Happy budgeting."
-    
-    # ---------------- Project Information ----------------
-    elif "who made you" in msg:
-        reply = "👨‍💻 I was created for the Budget Analysis System project."
-    
-    elif "what is this project" in msg:
-        reply = "📊 This is a Budget Analysis System developed using Python Flask and SQLite."
-    
-    elif "technology" in msg:
-        reply = "🛠 HTML, CSS, JavaScript, Python Flask, SQLite, Matplotlib, Flask-Mail and ReportLab."
-    
-    elif "flask" in msg:
-        reply = "🐍 Flask is a lightweight Python web framework."
-    
-    elif "sqlite" in msg:
-        reply = "🗄 SQLite is a lightweight relational database."
-    
-    # ---------------- Funny Responses ----------------
-    elif "tell me a joke" in msg:
-        reply = "😂 Why did the wallet go to school? To improve its balance!"
-    
-    elif "are you intelligent" in msg:
-        reply = "🤖 I know where your money is going 😄"
-    
-    elif "i am broke" in msg:
-        reply = "😂 Don't worry! Every big saver started with their first rupee."
-    
-    elif "i need money" in msg:
-        reply = "💸 I can't print money, but I can help you save it."
-    
-    elif "do you love money" in msg:
-        reply = "😂 I love helping YOU save money."
-    
-    elif "Who is the best developer" in msg:
-        reply = "😎 The developer of this Budget Analysis System deserves a big round of applause."
-
-    elif "who is your boss" in msg:
-        reply = "😎 My boss is the developer who built this Budget Analysis System."
-    
-    elif "sing a song" in msg:
-        reply = "🎵 Save money... Spend wisely... That's my favorite song!"
-    
-    elif "dance" in msg:
-        reply = "💃 I would dance if I had legs 😂"
-    
-    elif "who are you" in msg:
-        reply = "🤖 I am your Budget AI Assistant."
-    
-    elif "bye" in msg:
-        reply = "👋 Goodbye! Keep saving and see you again."
-    
-    # ---------------- Default Response ----------------
     else:
-        reply = (
-            "🤖 Sorry, I didn't understand.\n\n"
-            "You can ask:\n"
-            "• What is my total income?\n"
-            "• What is my total expense?\n"
-            "• What is my balance?\n"
-            "• What is my budget?\n"
-            "• What is my top category?\n"
-            "• Give me advice\n"
-            "• Tell me a joke"
-        )
+        reply = "🤖 Ask me about your income, expense, balance, or budget!"
     
     return jsonify({"reply": reply})
 
@@ -1450,12 +1187,7 @@ def pdf():
     username = session['user']
     conn = get_db_connection()
     cursor = conn.cursor()
-    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
-    
-    if is_postgres:
-        cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
-    else:
-        cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
+    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     data = cursor.fetchall()
     conn.close()
     
@@ -1493,12 +1225,7 @@ def download():
     username = session['user']
     conn = get_db_connection()
     cursor = conn.cursor()
-    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
-    
-    if is_postgres:
-        cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
-    else:
-        cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
+    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     data = cursor.fetchall()
     conn.close()
     
@@ -1510,23 +1237,14 @@ def download():
             else:
                 yield f"{row[2]},{row[3]},{row[4]},{row[5]},{row[6]},\n"
     
-    return Response(
-        generate(),
-        mimetype='text/csv',
-        headers={"Content-Disposition": "attachment; filename=budget.csv"}
-    )
+    return Response(generate(), mimetype='text/csv', headers={"Content-Disposition": "attachment; filename=budget.csv"})
 
 # ================= DELETE =================
 @app.route('/delete/<int:id>')
 def delete(id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
-    
-    if is_postgres:
-        cursor.execute("DELETE FROM transactions WHERE id=%s", (id,))
-    else:
-        cursor.execute("DELETE FROM transactions WHERE id=?", (id,))
+    cursor.execute("DELETE FROM transactions WHERE id=?", (id,))
     conn.commit()
     conn.close()
     return redirect('/')
