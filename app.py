@@ -14,7 +14,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
 
-app = Flask(__name__)
+app = Flask(__name__)  # ✅ CORRECT - app variable
 app.secret_key = "budgettracker"
 
 # ================= DATABASE CONNECTION (SQLITE ONLY) =================
