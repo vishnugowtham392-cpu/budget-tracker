@@ -12,21 +12,35 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
-import psycopg2
-from psycopg2.extras import RealDictCursor
+
+# ================= DATABASE IMPORTS (Conditional) =================
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    POSTGRES_AVAILABLE = True
+except ImportError:
+    POSTGRES_AVAILABLE = False
+    print("⚠️ psycopg2 not installed - using SQLite only")
 
 app = Flask(__name__)
 app.secret_key = "budgettracker"
 
 # ================= DATABASE CONNECTION =================
 def get_db_connection():
-    """Get database connection - PostgreSQL or SQLite"""
+    """Get database connection - PostgreSQL (if available) or SQLite"""
     database_url = os.environ.get('DATABASE_URL')
     
-    if database_url:
+    if database_url and POSTGRES_AVAILABLE:
         # PostgreSQL for production (Render)
-        conn = psycopg2.connect(database_url)
-        return conn
+        try:
+            conn = psycopg2.connect(database_url)
+            return conn
+        except Exception as e:
+            print(f"PostgreSQL connection failed: {e}")
+            # Fallback to SQLite
+            conn = sqlite3.connect("database/budget.db")
+            conn.row_factory = sqlite3.Row
+            return conn
     else:
         # SQLite for local development
         conn = sqlite3.connect("database/budget.db")
@@ -38,30 +52,55 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Create users table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users(
-            id SERIAL PRIMARY KEY,
-            username TEXT UNIQUE,
-            password TEXT,
-            email TEXT,
-            photo TEXT DEFAULT 'default.png'
-        )
-    """)
+    # Check if using PostgreSQL or SQLite
+    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
     
-    # Create transactions table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS transactions(
-            id SERIAL PRIMARY KEY,
-            username TEXT,
-            title TEXT,
-            amount REAL,
-            type TEXT,
-            category TEXT,
-            item TEXT,
-            date TEXT
-        )
-    """)
+    if is_postgres:
+        # PostgreSQL syntax
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users(
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE,
+                password TEXT,
+                email TEXT,
+                photo TEXT DEFAULT 'default.png'
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transactions(
+                id SERIAL PRIMARY KEY,
+                username TEXT,
+                title TEXT,
+                amount REAL,
+                type TEXT,
+                category TEXT,
+                item TEXT,
+                date TEXT
+            )
+        """)
+    else:
+        # SQLite syntax
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT,
+                email TEXT,
+                photo TEXT DEFAULT 'default.png'
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transactions(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                title TEXT,
+                amount REAL,
+                type TEXT,
+                category TEXT,
+                item TEXT,
+                date TEXT
+            )
+        """)
     
     conn.commit()
     conn.close()
@@ -121,11 +160,19 @@ def signup():
         
         conn = get_db_connection()
         cursor = conn.cursor()
+        is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
+        
         try:
-            cursor.execute("""
-                INSERT INTO users(username, password, email)
-                VALUES(%s, %s, %s)
-            """, (username, password, email))
+            if is_postgres:
+                cursor.execute("""
+                    INSERT INTO users(username, password, email)
+                    VALUES(%s, %s, %s)
+                """, (username, password, email))
+            else:
+                cursor.execute("""
+                    INSERT INTO users(username, password, email)
+                    VALUES(?, ?, ?)
+                """, (username, password, email))
             conn.commit()
             flash("Account created successfully! Please login.")
             conn.close()
@@ -150,9 +197,13 @@ def login():
         else:
             conn = get_db_connection()
             cursor = conn.cursor()
+            is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
             
             # Check if user exists
-            cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
+            if is_postgres:
+                cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
+            else:
+                cursor.execute("SELECT * FROM users WHERE username=?", (username,))
             user = cursor.fetchone()
             conn.close()
             
@@ -190,6 +241,7 @@ def profile():
     username = session['user']
     conn = get_db_connection()
     cur = conn.cursor()
+    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
     
     if request.method == "POST":
         new_username = request.form['username'].strip()
@@ -205,29 +257,51 @@ def profile():
             photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             
             # Update with photo
-            cur.execute("""
-                UPDATE users
-                SET username=%s,
-                    email=%s,
-                    password=%s,
-                    photo=%s
-                WHERE username=%s
-            """, (new_username, email, password, filename, username))
+            if is_postgres:
+                cur.execute("""
+                    UPDATE users
+                    SET username=%s,
+                        email=%s,
+                        password=%s,
+                        photo=%s
+                    WHERE username=%s
+                """, (new_username, email, password, filename, username))
+            else:
+                cur.execute("""
+                    UPDATE users
+                    SET username=?,
+                        email=?,
+                        password=?,
+                        photo=?
+                    WHERE username=?
+                """, (new_username, email, password, filename, username))
         else:
             # Update without photo
-            cur.execute("""
-                UPDATE users
-                SET username=%s,
-                    email=%s,
-                    password=%s
-                WHERE username=%s
-            """, (new_username, email, password, username))
+            if is_postgres:
+                cur.execute("""
+                    UPDATE users
+                    SET username=%s,
+                        email=%s,
+                        password=%s
+                    WHERE username=%s
+                """, (new_username, email, password, username))
+            else:
+                cur.execute("""
+                    UPDATE users
+                    SET username=?,
+                        email=?,
+                        password=?
+                    WHERE username=?
+                """, (new_username, email, password, username))
         
         conn.commit()
         session['user'] = new_username
         username = new_username
     
-    cur.execute("SELECT * FROM users WHERE username=%s", (username,))
+    if is_postgres:
+        cur.execute("SELECT * FROM users WHERE username=%s", (username,))
+    else:
+        cur.execute("SELECT * FROM users WHERE username=?", (username,))
     user = cur.fetchone()
     conn.close()
     
@@ -253,6 +327,7 @@ def upload():
     
     conn = get_db_connection()
     cursor = conn.cursor()
+    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
     
     with open(path, 'r') as f:
         reader = csv.reader(f)
@@ -276,11 +351,18 @@ def upload():
             item = row[4]
             date = row[5]
             
-            cursor.execute("""
-                INSERT INTO transactions
-                (username,title,amount,type,category,item,date)
-                VALUES(%s,%s,%s,%s,%s,%s,%s)
-            """, (session['user'], title, amount, t_type, category, item, date))
+            if is_postgres:
+                cursor.execute("""
+                    INSERT INTO transactions
+                    (username,title,amount,type,category,item,date)
+                    VALUES(%s,%s,%s,%s,%s,%s,%s)
+                """, (session['user'], title, amount, t_type, category, item, date))
+            else:
+                cursor.execute("""
+                    INSERT INTO transactions
+                    (username,title,amount,type,category,item,date)
+                    VALUES(?,?,?,?,?,?,?)
+                """, (session['user'], title, amount, t_type, category, item, date))
     
     conn.commit()
     conn.close()
@@ -296,9 +378,13 @@ def home():
     username = session['user']
     conn = get_db_connection()
     cursor = conn.cursor()
+    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
     
     # GET USER PROFILE DATA
-    cursor.execute("SELECT email, photo FROM users WHERE username=%s", (username,))
+    if is_postgres:
+        cursor.execute("SELECT email, photo FROM users WHERE username=%s", (username,))
+    else:
+        cursor.execute("SELECT email, photo FROM users WHERE username=?", (username,))
     user_data = cursor.fetchone()
     user_email = user_data[0] if user_data else ""
     user_photo = user_data[1] if user_data and user_data[1] else "default.png"
@@ -321,14 +407,23 @@ def home():
         
         date = request.form['date']
         
-        cursor.execute("""
-            INSERT INTO transactions (username,title,amount,type,category,item,date)
-            VALUES(%s,%s,%s,%s,%s,%s,%s)
-        """, (username, title, amount, ttype, category, item, date))
+        if is_postgres:
+            cursor.execute("""
+                INSERT INTO transactions (username,title,amount,type,category,item,date)
+                VALUES(%s,%s,%s,%s,%s,%s,%s)
+            """, (username, title, amount, ttype, category, item, date))
+        else:
+            cursor.execute("""
+                INSERT INTO transactions (username,title,amount,type,category,item,date)
+                VALUES(?,?,?,?,?,?,?)
+            """, (username, title, amount, ttype, category, item, date))
         conn.commit()
     
     # FETCH DATA
-    cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
+    if is_postgres:
+        cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
+    else:
+        cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     transactions = cursor.fetchall()
     
     total = 0
@@ -387,7 +482,7 @@ def home():
     
     # ================= SMART AI SAVING SYSTEM (COMPLETE) =================
     smart_items = {
-        # Morning Foods
+        # ================= MORNING FOODS =================
         "idli": {
             "alternative": "Home-made Idli 🥣",
             "reason": "Home food usually costs less",
@@ -448,6 +543,20 @@ def home():
             "benefit": "Save money + healthy food",
             "motivation": "Home food is always best 🏠"
         },
+        "omelette": {
+            "alternative": "Boiled Egg 🥚",
+            "reason": "Omelette uses more oil",
+            "benefit": "Healthy protein + less oil",
+            "motivation": "Healthy eating, healthy savings 💪"
+        },
+        "bread": {
+            "alternative": "Home-made Chapathi 🌮",
+            "reason": "Bread is processed food",
+            "benefit": "Fresh and healthy food",
+            "motivation": "Fresh food is always better 🏠"
+        },
+
+        # ================= AFTERNOON FOODS =================
         "briyani": {
             "alternative": "Meals 🍛",
             "reason": "Briyani often costs more",
@@ -484,6 +593,26 @@ def home():
             "benefit": "Save money + less food waste",
             "motivation": "Eat less, save more 💰"
         },
+        "pizza": {
+            "alternative": "Home-made Pizza 🍕",
+            "reason": "Outside pizza costs more",
+            "benefit": "Same taste + less cost",
+            "motivation": "Make pizza at home 🏠"
+        },
+        "burger": {
+            "alternative": "Sandwich 🥪",
+            "reason": "Fast food is expensive",
+            "benefit": "Healthy + savings",
+            "motivation": "Homemade is always better 🏠"
+        },
+        "sandwich": {
+            "alternative": "Home-made Sandwich 🥪",
+            "reason": "Outside sandwich costs more",
+            "benefit": "Fresh and healthy",
+            "motivation": "Home food is always fresh 🏠"
+        },
+
+        # ================= EVENING SNACKS =================
         "chips": {
             "alternative": "Fruits 🍎",
             "reason": "Chips are processed snacks",
@@ -508,13 +637,13 @@ def home():
             "benefit": "Less oil + save money",
             "motivation": "Healthy choices matter 🌟"
         },
-        "bondas": {
+        "bonda": {
             "alternative": "Idli 🥣",
             "reason": "Bonda is oily",
             "benefit": "Healthy alternative + savings",
             "motivation": "Smart snack choices 💪"
         },
-        "bonda": {
+        "bondas": {
             "alternative": "Idli 🥣",
             "reason": "Bonda is oily",
             "benefit": "Healthy alternative + savings",
@@ -526,6 +655,14 @@ def home():
             "benefit": "Healthy + save money",
             "motivation": "Choose fruits over fried 🍎"
         },
+        "cutlet": {
+            "alternative": "Boiled Vegetables 🥗",
+            "reason": "Cutlet is oily",
+            "benefit": "Healthy + savings",
+            "motivation": "Eat healthy, stay fit 💪"
+        },
+
+        # ================= DRINKS =================
         "tea": {
             "alternative": "Home-made Tea ☕",
             "reason": "Daily outside tea adds up",
@@ -568,6 +705,14 @@ def home():
             "benefit": "Save money + healthy",
             "motivation": "Home juice is best 🏠"
         },
+        "milkshake": {
+            "alternative": "Home-made Milkshake 🥛",
+            "reason": "Outside milkshake costs more",
+            "benefit": "Save money + healthy",
+            "motivation": "Make milkshake at home 🏠"
+        },
+
+        # ================= NIGHT FOODS =================
         "parotta": {
             "alternative": "Chapathi 🌮",
             "reason": "Heavy oily foods affect health",
@@ -586,18 +731,26 @@ def home():
             "benefit": "Healthy and economical",
             "motivation": "Smart food, smart future 💪"
         },
-        "burger": {
-            "alternative": "Sandwich 🥪",
+        "kfc": {
+            "alternative": "Home-made Chicken 🍗",
             "reason": "Fast food is expensive",
-            "benefit": "Healthy + savings",
-            "motivation": "Homemade is always better 🏠"
-        },
-        "pizza": {
-            "alternative": "Home-made Pizza 🍕",
-            "reason": "Outside pizza costs more",
             "benefit": "Same taste + less cost",
-            "motivation": "Make pizza at home 🏠"
+            "motivation": "Make at home 🏠"
         },
+        "fried chicken": {
+            "alternative": "Home-made Chicken 🍗",
+            "reason": "Fast food is expensive",
+            "benefit": "Same taste + less cost",
+            "motivation": "Make at home 🏠"
+        },
+        "mutton": {
+            "alternative": "Chicken 🍗",
+            "reason": "Mutton is expensive",
+            "benefit": "Lower cost + healthy",
+            "motivation": "Choose affordable protein 💰"
+        },
+
+        # ================= ENTERTAINMENT =================
         "movie": {
             "alternative": "Watch OTT 📺",
             "reason": "Theatre ticket + snacks increase spending",
@@ -634,12 +787,32 @@ def home():
             "benefit": "Save money + enjoy with friends",
             "motivation": "Home parties are better 🎉"
         },
-        "water bottle": {
-            "alternative": "Carry Water Bottle 🚰",
-            "reason": "Daily purchases increase cost",
-            "benefit": "Reduce daily expenses",
-            "motivation": "Daily savings become monthly savings 💧"
+        "club": {
+            "alternative": "Home Party 🏠",
+            "reason": "Clubs are expensive",
+            "benefit": "Save money",
+            "motivation": "Home parties are more fun 🎉"
         },
+        "netflix": {
+            "alternative": "Watch Free Content 📺",
+            "reason": "Multiple subscriptions cost more",
+            "benefit": "Save on subscriptions",
+            "motivation": "Watch content wisely 📺"
+        },
+        "amazon prime": {
+            "alternative": "Watch Free Content 📺",
+            "reason": "Multiple subscriptions cost more",
+            "benefit": "Save on subscriptions",
+            "motivation": "Watch content wisely 📺"
+        },
+        "hotstar": {
+            "alternative": "Watch Free Content 📺",
+            "reason": "Multiple subscriptions cost more",
+            "benefit": "Save on subscriptions",
+            "motivation": "Watch content wisely 📺"
+        },
+
+        # ================= TRANSPORTATION =================
         "petrol": {
             "alternative": "Public Transport 🚌",
             "reason": "Fuel costs increase over time",
@@ -670,6 +843,50 @@ def home():
             "benefit": "Save money on travel",
             "motivation": "Save money, travel smart 🚌"
         },
+        "uber": {
+            "alternative": "Public Transport 🚌",
+            "reason": "Uber is expensive",
+            "benefit": "Save money on travel",
+            "motivation": "Choose cheaper options 🚌"
+        },
+        "ola": {
+            "alternative": "Public Transport 🚌",
+            "reason": "Ola is expensive",
+            "benefit": "Save money on travel",
+            "motivation": "Choose cheaper options 🚌"
+        },
+        "rapido": {
+            "alternative": "Public Bus 🚌",
+            "reason": "Rapido is expensive for long distance",
+            "benefit": "Save money",
+            "motivation": "Use bus for longer trips 🚌"
+        },
+        "bike": {
+            "alternative": "Public Transport 🚌",
+            "reason": "Bike maintenance + fuel costs",
+            "benefit": "Reduce expenses",
+            "motivation": "Travel smart, save money 💰"
+        },
+        "car": {
+            "alternative": "Public Transport 🚌",
+            "reason": "Car maintenance + fuel + parking",
+            "benefit": "Save a lot on travel",
+            "motivation": "Public transport saves money 🌍"
+        },
+        "flight": {
+            "alternative": "Train Journey 🚂",
+            "reason": "Flights are expensive",
+            "benefit": "Save money on travel",
+            "motivation": "Train journeys are scenic and cheap 🚂"
+        },
+
+        # ================= DAILY USAGE =================
+        "water bottle": {
+            "alternative": "Carry Water Bottle 🚰",
+            "reason": "Daily purchases increase cost",
+            "benefit": "Reduce daily expenses",
+            "motivation": "Daily savings become monthly savings 💧"
+        },
         "mobile recharge": {
             "alternative": "Long-term Plan 📱",
             "reason": "Frequent recharges cost more",
@@ -682,6 +899,32 @@ def home():
             "benefit": "Better value",
             "motivation": "Spend once and save more 💡"
         },
+        "electricity": {
+            "alternative": "Use Energy Efficient Devices 💡",
+            "reason": "High electricity bills",
+            "benefit": "Reduce monthly bills",
+            "motivation": "Save power, save money 💡"
+        },
+        "water": {
+            "alternative": "Use Water Wisely 💧",
+            "reason": "Wasting water increases bills",
+            "benefit": "Reduce water bills",
+            "motivation": "Save water, save money 💧"
+        },
+        "gas": {
+            "alternative": "Use Induction Cooktop 🔥",
+            "reason": "Gas prices increase",
+            "benefit": "Save on fuel",
+            "motivation": "Use efficient cooking 🔥"
+        },
+        "cylinders": {
+            "alternative": "Use Induction Cooktop 🔥",
+            "reason": "Gas cylinder prices increase",
+            "benefit": "Save money",
+            "motivation": "Use efficient cooking 🔥"
+        },
+
+        # ================= GROCERY =================
         "oil": {
             "alternative": "Buy in Bulk 🛒",
             "reason": "Small packets cost more",
@@ -706,6 +949,20 @@ def home():
             "benefit": "Save money",
             "motivation": "Bulk buying saves money 💰"
         },
+        "flour": {
+            "alternative": "Buy in Bulk 🛒",
+            "reason": "Small packets cost more",
+            "benefit": "Save money",
+            "motivation": "Bulk buying saves money 💰"
+        },
+        "dal": {
+            "alternative": "Buy in Bulk 🛒",
+            "reason": "Small packets cost more",
+            "benefit": "Save money",
+            "motivation": "Bulk buying saves money 💰"
+        },
+
+        # ================= SHOPPING =================
         "clothes": {
             "alternative": "Season Sale Shopping 👕",
             "reason": "Regular prices are high",
@@ -730,6 +987,20 @@ def home():
             "benefit": "Save on shopping",
             "motivation": "Sale shopping saves money 🛍"
         },
+        "jeans": {
+            "alternative": "Season Sale Shopping 👖",
+            "reason": "Regular prices are high",
+            "benefit": "Save on shopping",
+            "motivation": "Sale shopping saves money 🛍"
+        },
+        "t-shirt": {
+            "alternative": "Season Sale Shopping 👕",
+            "reason": "Regular prices are high",
+            "benefit": "Save on shopping",
+            "motivation": "Sale shopping saves money 🛍"
+        },
+
+        # ================= ELECTRONICS =================
         "mobile": {
             "alternative": "Buy During Sale 📱",
             "reason": "Regular prices are higher",
@@ -748,6 +1019,20 @@ def home():
             "benefit": "Save money on electronics",
             "motivation": "Wait for sale to save 💰"
         },
+        "earphones": {
+            "alternative": "Buy During Sale 🎧",
+            "reason": "Regular prices are higher",
+            "benefit": "Save money",
+            "motivation": "Wait for sale to save 💰"
+        },
+        "headphones": {
+            "alternative": "Buy During Sale 🎧",
+            "reason": "Regular prices are higher",
+            "benefit": "Save money",
+            "motivation": "Wait for sale to save 💰"
+        },
+
+        # ================= MEDICAL =================
         "medicine": {
             "alternative": "Generic Medicine 💊",
             "reason": "Branded medicines cost more",
@@ -760,17 +1045,85 @@ def home():
             "benefit": "Same effect + savings",
             "motivation": "Generic medicines are equally effective 💊"
         },
-        "electricity": {
-            "alternative": "Use Energy Efficient Devices 💡",
-            "reason": "High electricity bills",
-            "benefit": "Reduce monthly bills",
-            "motivation": "Save power, save money 💡"
+        "doctor": {
+            "alternative": "Government Hospital 🏥",
+            "reason": "Private doctors are expensive",
+            "benefit": "Save on medical bills",
+            "motivation": "Government hospitals are affordable 🏥"
         },
-        "water": {
-            "alternative": "Use Water Wisely 💧",
-            "reason": "Wasting water increases bills",
-            "benefit": "Reduce water bills",
-            "motivation": "Save water, save money 💧"
+
+        # ================= BEAUTY & GROOMING =================
+        "salon": {
+            "alternative": "Home Grooming 💇",
+            "reason": "Salon visits are expensive",
+            "benefit": "Save money",
+            "motivation": "Learn home grooming 💇"
+        },
+        "haircut": {
+            "alternative": "Local Barber 💇",
+            "reason": "Premium salons cost more",
+            "benefit": "Save money",
+            "motivation": "Local barbers are cheaper 💇"
+        },
+        "makeup": {
+            "alternative": "Home Makeup 💄",
+            "reason": "Professional makeup costs more",
+            "benefit": "Save money",
+            "motivation": "Learn home makeup 💄"
+        },
+
+        # ================= EDUCATION =================
+        "books": {
+            "alternative": "Library Books 📚",
+            "reason": "New books are expensive",
+            "benefit": "Save money on books",
+            "motivation": "Libraries are treasure 🏛"
+        },
+        "courses": {
+            "alternative": "Free Online Courses 📖",
+            "reason": "Paid courses are expensive",
+            "benefit": "Same knowledge + free",
+            "motivation": "Learn for free 🎓"
+        },
+        "tution": {
+            "alternative": "Online Learning 📖",
+            "reason": "Tuition fees are high",
+            "benefit": "Save money on education",
+            "motivation": "Learn online for free 🎓"
+        },
+
+        # ================= GYM & FITNESS =================
+        "gym": {
+            "alternative": "Home Workout 💪",
+            "reason": "Gym membership is expensive",
+            "benefit": "Save money + flexible timing",
+            "motivation": "Home workout is also effective 💪"
+        },
+        "protein": {
+            "alternative": "Natural Protein 🥗",
+            "reason": "Protein powders are expensive",
+            "benefit": "Save money + natural",
+            "motivation": "Natural food is best 🥗"
+        },
+
+        # ================= TRAVEL =================
+        "hotel": {
+            "alternative": "Hostel/Home Stay 🏠",
+            "reason": "Hotels are expensive",
+            "benefit": "Save on accommodation",
+            "motivation": "Budget stays are good 🏠"
+        },
+        "tour": {
+            "alternative": "Budget Travel 🎒",
+            "reason": "Luxury tours are expensive",
+            "benefit": "Save money",
+            "motivation": "Budget travel is fun 🎒"
+        },
+        "foreign trip": {
+            "alternative": "Domestic Trip 🇮🇳",
+            "reason": "Foreign trips are expensive",
+            "benefit": "Save money + explore India",
+            "motivation": "India has many beautiful places 🇮🇳"
         }
     }
     
@@ -814,7 +1167,7 @@ def home():
     if not suggestions:
         suggestions.append("✅ Spending looks balanced. Keep saving! 💪")
     
-    # ================= SMART INSIGHTS (UPDATED) =================
+    # ================= SMART INSIGHTS =================
     category_total = {}
     most_expense = 0
     most_item = "None"
@@ -913,8 +1266,12 @@ def chatbot():
     
     conn = get_db_connection()
     cursor = conn.cursor()
+    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
     
-    cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
+    if is_postgres:
+        cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
+    else:
+        cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     transactions = cursor.fetchall()
     conn.close()
     
@@ -1011,6 +1368,9 @@ def chatbot():
     elif "do you love money" in msg:
         reply = "😂 I love helping YOU save money."
     
+    elif "Who is the best developer" in msg:
+        reply = "😎 The developer of this Budget Analysis System deserves a big round of applause."
+
     elif "who is your boss" in msg:
         reply = "😎 My boss is the developer who built this Budget Analysis System."
     
@@ -1048,7 +1408,12 @@ def pdf():
     username = session['user']
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
+    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
+    
+    if is_postgres:
+        cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
+    else:
+        cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     data = cursor.fetchall()
     conn.close()
     
@@ -1086,7 +1451,12 @@ def download():
     username = session['user']
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
+    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
+    
+    if is_postgres:
+        cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
+    else:
+        cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     data = cursor.fetchall()
     conn.close()
     
@@ -1109,7 +1479,12 @@ def download():
 def delete(id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM transactions WHERE id=%s", (id,))
+    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
+    
+    if is_postgres:
+        cursor.execute("DELETE FROM transactions WHERE id=%s", (id,))
+    else:
+        cursor.execute("DELETE FROM transactions WHERE id=?", (id,))
     conn.commit()
     conn.close()
     return redirect('/')
