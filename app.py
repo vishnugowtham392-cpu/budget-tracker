@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, redirect, Response, session, 
 import sqlite3
 import os
 import csv
+import traceback
 from werkzeug.utils import secure_filename
 import matplotlib
 matplotlib.use('Agg')
@@ -18,92 +19,118 @@ try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
     POSTGRES_AVAILABLE = True
-except ImportError:
+    print("✅ psycopg2 loaded successfully")
+except ImportError as e:
     POSTGRES_AVAILABLE = False
-    print("⚠️ psycopg2 not installed - using SQLite only")
+    print(f"⚠️ psycopg2 not installed: {e} - using SQLite only")
 
 app = Flask(__name__)
 app.secret_key = "budgettracker"
 
+# ================= ERROR HANDLING =================
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle all exceptions and return error message"""
+    print(f"❌ Error: {str(e)}")
+    print(traceback.format_exc())
+    return f"Internal Server Error: {str(e)}", 500
+
 # ================= DATABASE CONNECTION =================
 def get_db_connection():
-    """Get database connection - PostgreSQL (if available) or SQLite"""
+    """Get database connection - PostgreSQL or SQLite"""
     database_url = os.environ.get('DATABASE_URL')
+    
+    # Log the database URL (masked for security)
+    if database_url:
+        print(f"✅ DATABASE_URL found: {database_url[:20]}...")
+    else:
+        print("⚠️ DATABASE_URL not found - using SQLite")
     
     if database_url and POSTGRES_AVAILABLE:
         # PostgreSQL for production (Render)
         try:
             conn = psycopg2.connect(database_url)
+            print("✅ Connected to PostgreSQL successfully!")
             return conn
         except Exception as e:
-            print(f"PostgreSQL connection failed: {e}")
+            print(f"❌ PostgreSQL connection failed: {e}")
+            print("⚠️ Falling back to SQLite")
             # Fallback to SQLite
             conn = sqlite3.connect("database/budget.db")
             conn.row_factory = sqlite3.Row
             return conn
     else:
         # SQLite for local development
+        print("✅ Using SQLite database")
         conn = sqlite3.connect("database/budget.db")
         conn.row_factory = sqlite3.Row
         return conn
 
 def init_db():
     """Initialize database tables"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Check if using PostgreSQL or SQLite
-    is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
-    
-    if is_postgres:
-        # PostgreSQL syntax
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users(
-                id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE,
-                password TEXT,
-                email TEXT,
-                photo TEXT DEFAULT 'default.png'
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS transactions(
-                id SERIAL PRIMARY KEY,
-                username TEXT,
-                title TEXT,
-                amount REAL,
-                type TEXT,
-                category TEXT,
-                item TEXT,
-                date TEXT
-            )
-        """)
-    else:
-        # SQLite syntax
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE,
-                password TEXT,
-                email TEXT,
-                photo TEXT DEFAULT 'default.png'
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS transactions(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT,
-                title TEXT,
-                amount REAL,
-                type TEXT,
-                category TEXT,
-                item TEXT,
-                date TEXT
-            )
-        """)
-    
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if using PostgreSQL or SQLite
+        is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
+        
+        if is_postgres:
+            print("✅ Initializing PostgreSQL tables")
+            # PostgreSQL syntax
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users(
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE,
+                    password TEXT,
+                    email TEXT,
+                    photo TEXT DEFAULT 'default.png'
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS transactions(
+                    id SERIAL PRIMARY KEY,
+                    username TEXT,
+                    title TEXT,
+                    amount REAL,
+                    type TEXT,
+                    category TEXT,
+                    item TEXT,
+                    date TEXT
+                )
+            """)
+        else:
+            print("✅ Initializing SQLite tables")
+            # SQLite syntax
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE,
+                    password TEXT,
+                    email TEXT,
+                    photo TEXT DEFAULT 'default.png'
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS transactions(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT,
+                    title TEXT,
+                    amount REAL,
+                    type TEXT,
+                    category TEXT,
+                    item TEXT,
+                    date TEXT
+                )
+            """)
+        
+        conn.commit()
+        conn.close()
+        print("✅ Database initialized successfully!")
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")
+        print(traceback.format_exc())
+        raise
 
 # ================= UPLOAD SETTINGS =================
 app.config['UPLOAD_FOLDER'] = "static/uploads"
@@ -126,7 +153,13 @@ os.makedirs("static/profiles", exist_ok=True)  # For profile photos
 os.makedirs("static/uploads", exist_ok=True)   # For uploads
 
 # ================= DATABASE INIT =================
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"❌ Failed to initialize database: {e}")
+    print("⚠️ Continuing with SQLite fallback...")
+    # Force SQLite fallback
+    os.environ.pop('DATABASE_URL', None)
 
 # ================= EMAIL WARNING =================
 def send_warning_email(email, username, expense):
@@ -158,11 +191,11 @@ def signup():
             flash("All fields are required!")
             return render_template("signup.html")
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
-        
         try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
+            
             if is_postgres:
                 cursor.execute("""
                     INSERT INTO users(username, password, email)
@@ -178,7 +211,7 @@ def signup():
             conn.close()
             return redirect('/login')
         except Exception as e:
-            conn.close()
+            print(f"Signup error: {e}")
             flash("Username already exists! Please choose another.")
             return render_template("signup.html")
     
@@ -195,27 +228,31 @@ def login():
         if not username or not password:
             error = "Username and password are required!"
         else:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
-            
-            # Check if user exists
-            if is_postgres:
-                cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
-            else:
-                cursor.execute("SELECT * FROM users WHERE username=?", (username,))
-            user = cursor.fetchone()
-            conn.close()
-            
-            if user:
-                # Check password
-                if user[2] == password:  # password is at index 2
-                    session['user'] = username
-                    return redirect('/')
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
+                
+                # Check if user exists
+                if is_postgres:
+                    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
                 else:
-                    error = "Invalid Password! Please try again."
-            else:
-                error = "Username not found! Please sign up first."
+                    cursor.execute("SELECT * FROM users WHERE username=?", (username,))
+                user = cursor.fetchone()
+                conn.close()
+                
+                if user:
+                    # Check password
+                    if user[2] == password:  # password is at index 2
+                        session['user'] = username
+                        return redirect('/')
+                    else:
+                        error = "Invalid Password! Please try again."
+                else:
+                    error = "Username not found! Please sign up first."
+            except Exception as e:
+                print(f"Login error: {e}")
+                error = "Database error. Please try again."
     
     return render_template("login.html", error=error)
 
@@ -381,13 +418,18 @@ def home():
     is_postgres = POSTGRES_AVAILABLE and os.environ.get('DATABASE_URL')
     
     # GET USER PROFILE DATA
-    if is_postgres:
-        cursor.execute("SELECT email, photo FROM users WHERE username=%s", (username,))
-    else:
-        cursor.execute("SELECT email, photo FROM users WHERE username=?", (username,))
-    user_data = cursor.fetchone()
-    user_email = user_data[0] if user_data else ""
-    user_photo = user_data[1] if user_data and user_data[1] else "default.png"
+    try:
+        if is_postgres:
+            cursor.execute("SELECT email, photo FROM users WHERE username=%s", (username,))
+        else:
+            cursor.execute("SELECT email, photo FROM users WHERE username=?", (username,))
+        user_data = cursor.fetchone()
+        user_email = user_data[0] if user_data else ""
+        user_photo = user_data[1] if user_data and user_data[1] else "default.png"
+    except Exception as e:
+        print(f"Error fetching user data: {e}")
+        user_email = ""
+        user_photo = "default.png"
     
     # ================= ADD TRANSACTION (UPDATED WITH SAFE CATEGORY) =================
     if request.method == "POST":
