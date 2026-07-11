@@ -12,9 +12,59 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 app.secret_key = "budgettracker"
+
+# ================= DATABASE CONNECTION =================
+def get_db_connection():
+    """Get database connection - PostgreSQL or SQLite"""
+    database_url = os.environ.get('DATABASE_URL')
+    
+    if database_url:
+        # PostgreSQL for production (Render)
+        conn = psycopg2.connect(database_url)
+        return conn
+    else:
+        # SQLite for local development
+        conn = sqlite3.connect("database/budget.db")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+def init_db():
+    """Initialize database tables"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Create users table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users(
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE,
+            password TEXT,
+            email TEXT,
+            photo TEXT DEFAULT 'default.png'
+        )
+    """)
+    
+    # Create transactions table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS transactions(
+            id SERIAL PRIMARY KEY,
+            username TEXT,
+            title TEXT,
+            amount REAL,
+            type TEXT,
+            category TEXT,
+            item TEXT,
+            date TEXT
+        )
+    """)
+    
+    conn.commit()
+    conn.close()
 
 # ================= UPLOAD SETTINGS =================
 app.config['UPLOAD_FOLDER'] = "static/uploads"
@@ -37,42 +87,6 @@ os.makedirs("static/profiles", exist_ok=True)  # For profile photos
 os.makedirs("static/uploads", exist_ok=True)   # For uploads
 
 # ================= DATABASE INIT =================
-def init_db():
-    conn = sqlite3.connect("database/budget.db")
-    cursor = conn.cursor()
-    
-    # ================= UPDATED USERS TABLE WITH PROFILE FEATURES =================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
-            email TEXT,
-            photo TEXT DEFAULT 'default.png'
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS transactions(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            title TEXT,
-            amount REAL,
-            type TEXT,
-            category TEXT,
-            item TEXT,
-            date TEXT
-        )
-    """)
-    
-    try:
-        cursor.execute("ALTER TABLE transactions ADD COLUMN item TEXT")
-    except:
-        pass
-    
-    conn.commit()
-    conn.close()
-
 init_db()
 
 # ================= EMAIL WARNING =================
@@ -105,24 +119,20 @@ def signup():
             flash("All fields are required!")
             return render_template("signup.html")
         
-        conn = sqlite3.connect("database/budget.db")
+        conn = get_db_connection()
         cursor = conn.cursor()
         try:
             cursor.execute("""
                 INSERT INTO users(username, password, email)
-                VALUES(?, ?, ?)
+                VALUES(%s, %s, %s)
             """, (username, password, email))
             conn.commit()
             flash("Account created successfully! Please login.")
             conn.close()
             return redirect('/login')
-        except sqlite3.IntegrityError:
-            conn.close()
-            flash("Username already exists! Please choose another.")
-            return render_template("signup.html")
         except Exception as e:
             conn.close()
-            flash(f"Error: {str(e)}")
+            flash("Username already exists! Please choose another.")
             return render_template("signup.html")
     
     return render_template("signup.html")
@@ -138,11 +148,11 @@ def login():
         if not username or not password:
             error = "Username and password are required!"
         else:
-            conn = sqlite3.connect("database/budget.db")
+            conn = get_db_connection()
             cursor = conn.cursor()
             
             # Check if user exists
-            cursor.execute("SELECT * FROM users WHERE username=?", (username,))
+            cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
             user = cursor.fetchone()
             conn.close()
             
@@ -178,7 +188,7 @@ def profile():
         return redirect('/login')
     
     username = session['user']
-    conn = sqlite3.connect("database/budget.db")
+    conn = get_db_connection()
     cur = conn.cursor()
     
     if request.method == "POST":
@@ -197,27 +207,27 @@ def profile():
             # Update with photo
             cur.execute("""
                 UPDATE users
-                SET username=?,
-                    email=?,
-                    password=?,
-                    photo=?
-                WHERE username=?
+                SET username=%s,
+                    email=%s,
+                    password=%s,
+                    photo=%s
+                WHERE username=%s
             """, (new_username, email, password, filename, username))
         else:
             # Update without photo
             cur.execute("""
                 UPDATE users
-                SET username=?,
-                    email=?,
-                    password=?
-                WHERE username=?
+                SET username=%s,
+                    email=%s,
+                    password=%s
+                WHERE username=%s
             """, (new_username, email, password, username))
         
         conn.commit()
         session['user'] = new_username
         username = new_username
     
-    cur.execute("SELECT * FROM users WHERE username=?", (username,))
+    cur.execute("SELECT * FROM users WHERE username=%s", (username,))
     user = cur.fetchone()
     conn.close()
     
@@ -241,7 +251,7 @@ def upload():
     path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(path)
     
-    conn = sqlite3.connect("database/budget.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     with open(path, 'r') as f:
@@ -269,7 +279,7 @@ def upload():
             cursor.execute("""
                 INSERT INTO transactions
                 (username,title,amount,type,category,item,date)
-                VALUES(?,?,?,?,?,?,?)
+                VALUES(%s,%s,%s,%s,%s,%s,%s)
             """, (session['user'], title, amount, t_type, category, item, date))
     
     conn.commit()
@@ -284,11 +294,11 @@ def home():
         return redirect('/login')
     
     username = session['user']
-    conn = sqlite3.connect("database/budget.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     # GET USER PROFILE DATA
-    cursor.execute("SELECT email, photo FROM users WHERE username=?", (username,))
+    cursor.execute("SELECT email, photo FROM users WHERE username=%s", (username,))
     user_data = cursor.fetchone()
     user_email = user_data[0] if user_data else ""
     user_photo = user_data[1] if user_data and user_data[1] else "default.png"
@@ -313,12 +323,12 @@ def home():
         
         cursor.execute("""
             INSERT INTO transactions (username,title,amount,type,category,item,date)
-            VALUES(?,?,?,?,?,?,?)
+            VALUES(%s,%s,%s,%s,%s,%s,%s)
         """, (username, title, amount, ttype, category, item, date))
         conn.commit()
     
     # FETCH DATA
-    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
+    cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
     transactions = cursor.fetchall()
     
     total = 0
@@ -377,7 +387,7 @@ def home():
     
     # ================= SMART AI SAVING SYSTEM (COMPLETE) =================
     smart_items = {
-        # ================= MORNING FOODS =================
+        # Morning Foods
         "idli": {
             "alternative": "Home-made Idli 🥣",
             "reason": "Home food usually costs less",
@@ -438,8 +448,6 @@ def home():
             "benefit": "Save money + healthy food",
             "motivation": "Home food is always best 🏠"
         },
-
-        # ================= AFTERNOON FOODS =================
         "briyani": {
             "alternative": "Meals 🍛",
             "reason": "Briyani often costs more",
@@ -476,8 +484,6 @@ def home():
             "benefit": "Save money + less food waste",
             "motivation": "Eat less, save more 💰"
         },
-
-        # ================= EVENING SNACKS =================
         "chips": {
             "alternative": "Fruits 🍎",
             "reason": "Chips are processed snacks",
@@ -520,8 +526,6 @@ def home():
             "benefit": "Healthy + save money",
             "motivation": "Choose fruits over fried 🍎"
         },
-
-        # ================= DRINKS =================
         "tea": {
             "alternative": "Home-made Tea ☕",
             "reason": "Daily outside tea adds up",
@@ -564,8 +568,6 @@ def home():
             "benefit": "Save money + healthy",
             "motivation": "Home juice is best 🏠"
         },
-
-        # ================= NIGHT FOODS =================
         "parotta": {
             "alternative": "Chapathi 🌮",
             "reason": "Heavy oily foods affect health",
@@ -596,8 +598,6 @@ def home():
             "benefit": "Same taste + less cost",
             "motivation": "Make pizza at home 🏠"
         },
-
-        # ================= ENTERTAINMENT =================
         "movie": {
             "alternative": "Watch OTT 📺",
             "reason": "Theatre ticket + snacks increase spending",
@@ -634,8 +634,6 @@ def home():
             "benefit": "Save money + enjoy with friends",
             "motivation": "Home parties are better 🎉"
         },
-
-        # ================= DAILY USAGE =================
         "water bottle": {
             "alternative": "Carry Water Bottle 🚰",
             "reason": "Daily purchases increase cost",
@@ -684,8 +682,6 @@ def home():
             "benefit": "Better value",
             "motivation": "Spend once and save more 💡"
         },
-
-        # ================= GROCERY =================
         "oil": {
             "alternative": "Buy in Bulk 🛒",
             "reason": "Small packets cost more",
@@ -710,8 +706,6 @@ def home():
             "benefit": "Save money",
             "motivation": "Bulk buying saves money 💰"
         },
-
-        # ================= SHOPPING =================
         "clothes": {
             "alternative": "Season Sale Shopping 👕",
             "reason": "Regular prices are high",
@@ -736,8 +730,6 @@ def home():
             "benefit": "Save on shopping",
             "motivation": "Sale shopping saves money 🛍"
         },
-
-        # ================= ELECTRONICS =================
         "mobile": {
             "alternative": "Buy During Sale 📱",
             "reason": "Regular prices are higher",
@@ -756,8 +748,6 @@ def home():
             "benefit": "Save money on electronics",
             "motivation": "Wait for sale to save 💰"
         },
-
-        # ================= MEDICAL =================
         "medicine": {
             "alternative": "Generic Medicine 💊",
             "reason": "Branded medicines cost more",
@@ -770,8 +760,6 @@ def home():
             "benefit": "Same effect + savings",
             "motivation": "Generic medicines are equally effective 💊"
         },
-
-        # ================= BILLS =================
         "electricity": {
             "alternative": "Use Energy Efficient Devices 💡",
             "reason": "High electricity bills",
@@ -923,10 +911,10 @@ def chatbot():
     
     username = session['user']
     
-    conn = sqlite3.connect("database/budget.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
+    cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
     transactions = cursor.fetchall()
     conn.close()
     
@@ -1058,9 +1046,9 @@ def chatbot():
 @app.route('/pdf')
 def pdf():
     username = session['user']
-    conn = sqlite3.connect("database/budget.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
+    cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
     data = cursor.fetchall()
     conn.close()
     
@@ -1096,9 +1084,9 @@ def pdf():
 @app.route('/download')
 def download():
     username = session['user']
-    conn = sqlite3.connect("database/budget.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
+    cursor.execute("SELECT * FROM transactions WHERE username=%s", (username,))
     data = cursor.fetchall()
     conn.close()
     
@@ -1119,9 +1107,9 @@ def download():
 # ================= DELETE =================
 @app.route('/delete/<int:id>')
 def delete(id):
-    conn = sqlite3.connect("database/budget.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM transactions WHERE id=?", (id,))
+    cursor.execute("DELETE FROM transactions WHERE id=%s", (id,))
     conn.commit()
     conn.close()
     return redirect('/')
