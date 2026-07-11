@@ -1075,29 +1075,54 @@ def home():
     if not suggestions:
         suggestions.append("✅ Spending looks balanced. Keep saving! 💪")
     
-    # ================= CHARTS =================
+    # ================= CHARTS (FIXED - DYNAMIC) =================
     try:
+        # 1. Income vs Expense Pie Chart
         plt.figure()
-        plt.pie([income if income > 0 else 1, expense], labels=["Income", "Expense"], autopct="%1.1f%%")
+        if income > 0 or expense > 0:
+            plt.pie([income if income > 0 else 1, expense if expense > 0 else 1], 
+                    labels=["Income", "Expense"], autopct="%1.1f%%")
+        else:
+            plt.text(0.5, 0.5, "No Data Available", ha="center", va="center", fontsize=14)
         plt.savefig("static/chart.png")
         plt.close()
         
+        # 2. Monthly Expense Bar Chart
         plt.figure(figsize=(8,5))
-        months = sorted(monthly_data.keys())
-        values = [monthly_data[m] for m in months]
-        plt.bar(months, values)
-        plt.title("Monthly Expense Analysis")
-        plt.xticks(rotation=30)
+        if monthly_data:
+            months = sorted(monthly_data.keys())
+            values = [monthly_data[m] for m in months]
+            plt.bar(months, values)
+            plt.title("Monthly Expense Analysis")
+            plt.xticks(rotation=30)
+        else:
+            plt.text(0.5, 0.5, "No Monthly Data", ha="center", va="center", fontsize=14)
         plt.tight_layout()
         plt.savefig("static/monthly_chart.png", bbox_inches='tight')
         plt.close()
         
+        # 3. Category Analytics Pie Chart (FIXED - Dynamic Categories)
+        plt.figure(figsize=(6,6))
         if category_data:
-            plt.figure()
-            plt.pie(category_data.values(), labels=category_data.keys(), autopct="%1.1f%%")
-            plt.title("Category Analytics")
-            plt.savefig("static/category_chart.png")
-            plt.close()
+            # Dynamically create labels and values from actual data
+            labels = list(category_data.keys())
+            values = list(category_data.values())
+            
+            # Only show categories with values > 0
+            filtered_data = {k: v for k, v in category_data.items() if v > 0}
+            
+            if filtered_data:
+                plt.pie(filtered_data.values(), 
+                        labels=filtered_data.keys(), 
+                        autopct="%1.1f%%")
+                plt.title("Category Analytics")
+            else:
+                plt.text(0.5, 0.5, "No Expense Data", ha="center", va="center", fontsize=14)
+        else:
+            plt.text(0.5, 0.5, "No Category Data", ha="center", va="center", fontsize=14)
+        plt.savefig("static/category_chart.png")
+        plt.close()
+        
     except Exception as e:
         print(f"Chart generation error: {e}")
     
