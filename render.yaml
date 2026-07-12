@@ -1,13 +1,9 @@
 services:
   - type: web
     name: budget-tracker
-    runtime: python
-    plan: free
-
+    env: python
     buildCommand: pip install -r requirements.txt
-
     startCommand: gunicorn app:app
-
     envVars:
       - key: PYTHON_VERSION
-        value: 3.10.13
+        value: 3.11.0
