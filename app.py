@@ -7,14 +7,14 @@ import traceback
 from werkzeug.utils import secure_filename
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+import matplotlib.pyplot asplt
 from flask_mail import Mail, Message
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
 
-app = Flask(__name__)  # ✅ CORRECT - app variable
+app = Flask(__name__)
 app.secret_key = "budgettracker"
 
 # ================= DATABASE CONNECTION (SQLITE ONLY) =================
@@ -1154,6 +1154,79 @@ def home():
         category_data=category_data
     )
 
+# ================= DEBUG DATABASE ROUTE =================
+@app.route('/debug/db')
+def debug_db():
+    if 'user' not in session:
+        return redirect('/login')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Get all transactions for the user
+    cursor.execute("SELECT * FROM transactions WHERE username=?", (session['user'],))
+    transactions = cursor.fetchall()
+    
+    # Get user info
+    cursor.execute("SELECT id, username, email FROM users")
+    users = cursor.fetchall()
+    conn.close()
+    
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Database Debug</title>
+        <style>
+            body { font-family: Arial; padding: 20px; background: #f4f6f9; }
+            .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 10px lightgray; }
+            h1 { color: #28a745; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+            th { background: #28a745; color: white; }
+            .back { display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; }
+            .back:hover { background: #218838; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>📊 Database Debug</h1>
+            <a href="/" class="back">⬅ Back to Dashboard</a>
+        </div>
+        
+        <div class="card">
+            <h2>👤 Users</h2>
+            <p>Total Users: <b>""" + str(len(users)) + """</b></p>
+            <table>
+                <tr><th>ID</th><th>Username</th><th>Email</th></tr>
+    """
+    
+    for u in users:
+        html += f"<tr><td>{u[0]}</td><td>{u[1]}</td><td>{u[2]}</td></tr>"
+    
+    html += """
+            </table>
+        </div>
+        
+        <div class="card">
+            <h2>📋 Transactions</h2>
+            <p>Total Transactions: <b>""" + str(len(transactions)) + """</b></p>
+            <table>
+                <tr><th>ID</th><th>Title</th><th>Amount</th><th>Type</th><th>Category</th><th>Item</th><th>Date</th></tr>
+    """
+    
+    for t in transactions:
+        html += f"<tr><td>{t[0]}</td><td>{t[2]}</td><td>₹{t[3]}</td><td>{t[4]}</td><td>{t[5]}</td><td>{t[6]}</td><td>{t[7]}</td></tr>"
+    
+    html += """
+            </table>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html
+
 # ================= CHATBOT =================
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
@@ -1274,6 +1347,7 @@ def delete(id):
     conn.close()
     return redirect('/')
 
+# ================= RUN =================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
