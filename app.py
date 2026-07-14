@@ -22,9 +22,9 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'yourgmail@gmail.com'      # <-- REPLACE WITH YOUR GMAIL
-app.config['MAIL_PASSWORD'] = 'your_app_password'        # <-- REPLACE WITH APP PASSWORD
-app.config['MAIL_DEFAULT_SENDER'] = 'yourgmail@gmail.com'
+app.config['MAIL_USERNAME'] = 'vishnugowtham392@gmail.com'  # YOUR GMAIL
+app.config['MAIL_PASSWORD'] = 'your_app_password_here'      # REPLACE WITH 16-CHAR APP PASSWORD
+app.config['MAIL_DEFAULT_SENDER'] = 'vishnugowtham392@gmail.com'
 app.config['MAIL_DEBUG'] = True
 mail = Mail(app)
 
@@ -96,7 +96,7 @@ def handle_exception(e):
     print(traceback.format_exc())
     return f"Error: {error_msg}", 500
 
-# ================= EMAIL WARNING FUNCTION (WITH PRINT STATEMENTS) =================
+# ================= EMAIL WARNING FUNCTION =================
 def send_budget_warning_email(email, username, expense, budget_limit):
     try:
         print("===================================")
@@ -129,12 +129,15 @@ Your budget limit has been exceeded.
 • Current Expense: ₹{expense}
 • Excess Amount: ₹{expense - budget_limit}
 
-💡 Suggestions:
+💡 Suggestions to Reduce Spending:
 1. Track your daily expenses
 2. Avoid unnecessary shopping
 3. Cook at home instead of ordering
 4. Use public transport
 5. Cancel unused subscriptions
+
+🔥 Motivation:
+"Every rupee saved is a rupee earned!"
 
 Stay on track! 💰
 
@@ -163,17 +166,35 @@ def test_email():
         print("===================================")
         
         msg = Message(
-            subject="Test Email from Budget Tracker",
+            subject="✅ Test Email from Budget Tracker",
             sender=app.config['MAIL_USERNAME'],
             recipients=[app.config['MAIL_USERNAME']]
         )
-        msg.body = "✅ Test email from Budget Tracker!"
+        msg.body = """
+✅ Test Email from Budget Tracker!
+
+If you received this, your email configuration is working perfectly.
+
+🎉 Your Budget Analysis System is ready to send notifications!
+
+- Budget Analysis System
+        """
         mail.send(msg)
         print("✅ Test email sent successfully!")
-        return "✅ Test email sent! Check your inbox."
+        return """
+        <h1>✅ Test Email Sent!</h1>
+        <p>Check your Gmail inbox: <b>""" + app.config['MAIL_USERNAME'] + """</b></p>
+        <p>If you don't see it, check your Spam folder.</p>
+        <a href="/">⬅ Back to Dashboard</a>
+        """
     except Exception as e:
         print(f"❌ Test email failed: {e}")
-        return f"❌ Failed: {str(e)}"
+        return f"""
+        <h1>❌ Test Email Failed!</h1>
+        <p>Error: {str(e)}</p>
+        <p>Check your Gmail and App Password configuration.</p>
+        <a href="/">⬅ Back to Dashboard</a>
+        """
 
 # ================= SIGNUP =================
 @app.route('/signup', methods=['GET', 'POST'])
@@ -251,6 +272,13 @@ def logout():
 def set_limit():
     global budget_limit
     budget_limit = int(request.form['limit'])
+    
+    # Validate the limit is between 1000 and 10000
+    if budget_limit < 1000:
+        budget_limit = 1000
+    elif budget_limit > 10000:
+        budget_limit = 10000
+    
     flash(f"✅ Budget limit set to ₹{budget_limit}")
     return redirect('/')
 

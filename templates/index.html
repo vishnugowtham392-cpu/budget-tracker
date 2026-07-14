@@ -653,17 +653,40 @@
             </div>
         </div>
 
-        <!-- BUDGET LIMIT -->
+        <!-- ================= BUDGET LIMIT (UPDATED WITH RANGE SLIDER) ================= -->
         <div class="card">
             <div class="title">⚙ Budget Limit</div>
 
             <form action="/set_limit" method="POST">
-                <input type="number" name="limit" placeholder="Enter Budget Limit" required>
-                <button>Save Limit</button>
+                <div style="display: flex; align-items: center; gap: 15px; margin-top: 10px;">
+                    <span style="font-weight: bold; min-width: 60px; color: #dc3545;">₹1000</span>
+                    <input type="range" 
+                           name="limit" 
+                           id="budgetRange" 
+                           min="1000" 
+                           max="10000" 
+                           step="500" 
+                           value="{{ budget_limit }}"
+                           style="flex: 1; padding: 0; margin: 0; width: 100%; height: 8px; -webkit-appearance: none; background: linear-gradient(to right, #28a745, #dc3545); border-radius: 5px; outline: none;"
+                           oninput="updateBudgetDisplay(this.value)">
+                    <span style="font-weight: bold; min-width: 60px; color: #28a745;">₹10000</span>
+                </div>
+                
+                <div style="text-align: center; margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 10px;">
+                    <h3 style="margin: 0;">Selected Budget: <span id="budgetDisplay" style="color: #28a745; font-size: 28px;">₹{{ budget_limit }}</span></h3>
+                </div>
+                
+                <button type="submit">💾 Save Budget Limit</button>
             </form>
 
-            <br>
-            <h3>Current Limit: ₹{{ budget_limit }}</h3>
+            <div style="text-align: center; margin-top: 15px; padding: 10px; background: #e8f5e9; border-radius: 10px;">
+                <h3>Current Limit: <span style="color: #28a745;">₹{{ budget_limit }}</span></h3>
+                {% if expense > budget_limit %}
+                    <p style="color: #dc3545; font-weight: bold;">⚠️ Budget Exceeded!</p>
+                {% else %}
+                    <p style="color: #28a745;">✅ Budget Under Control</p>
+                {% endif %}
+            </div>
         </div>
 
         <!-- SUMMARY -->
@@ -818,6 +841,11 @@
             } else {
                 expenseFields.style.display = "none";
             }
+        }
+
+        // Update Budget Display
+        function updateBudgetDisplay(value) {
+            document.getElementById('budgetDisplay').innerHTML = '₹' + value;
         }
 
         // Load saved preference and initialize
