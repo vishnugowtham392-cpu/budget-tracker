@@ -308,6 +308,79 @@
             color: #66b3ff;
         }
 
+        /* Email Summary Styles */
+        .email-summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .email-summary-item:last-child {
+            border-bottom: none;
+        }
+
+        .dark .email-summary-item {
+            border-bottom-color: #444;
+        }
+
+        .status-success {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .status-danger {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .status-warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+
+        .status-info {
+            color: #6c757d;
+            font-weight: bold;
+        }
+
+        .btn-email {
+            display: inline-block;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: 0.3s;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .btn-email:hover {
+            transform: scale(1.02);
+            opacity: 0.9;
+        }
+
+        .btn-primary {
+            background: #007bff;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
         /* ================= DARK MODE ================= */
         .dark {
             background: #121212;
@@ -457,6 +530,18 @@
                 flex-direction: column;
                 text-align: center;
                 gap: 5px;
+            }
+
+            .email-summary-item {
+                flex-direction: column;
+                text-align: center;
+                gap: 5px;
+            }
+
+            .btn-email {
+                min-width: 80px;
+                font-size: 12px;
+                padding: 8px 12px;
             }
         }
 
@@ -686,6 +771,95 @@
                 {% else %}
                     <p style="color: #28a745;">✅ Budget Under Control</p>
                 {% endif %}
+            </div>
+        </div>
+
+        <!-- ================= EMAIL NOTIFICATION SUMMARY ================= -->
+        <div class="card">
+            <div class="title">📧 Email Notification Summary</div>
+            
+            <div style="padding: 10px; line-height: 2; font-size: 16px;">
+                <!-- User Email -->
+                <div class="email-summary-item">
+                    <span>📧 User Email:</span>
+                    <span style="font-weight: bold; color: #28a745;">
+                        {{ user_email if user_email else '⚠️ Not Set' }}
+                    </span>
+                </div>
+                
+                <!-- Budget Limit -->
+                <div class="email-summary-item">
+                    <span>💰 Budget Limit:</span>
+                    <span style="font-weight: bold; color: #28a745;">₹{{ budget_limit }}</span>
+                </div>
+                
+                <!-- Current Expense -->
+                <div class="email-summary-item">
+                    <span>💸 Current Expense:</span>
+                    <span style="font-weight: bold; color: {% if expense > budget_limit %}#dc3545{% else %}#28a745{% endif %};">
+                        ₹{{ expense }}
+                    </span>
+                </div>
+                
+                <!-- Excess Amount -->
+                {% if expense > budget_limit %}
+                <div class="email-summary-item">
+                    <span>🔴 Excess Amount:</span>
+                    <span style="font-weight: bold; color: #dc3545;">
+                        ₹{{ expense - budget_limit }}
+                    </span>
+                </div>
+                {% endif %}
+                
+                <!-- Status -->
+                <div class="email-summary-item">
+                    <span>📊 Status:</span>
+                    <span style="font-weight: bold; color: {% if expense > budget_limit %}#dc3545{% else %}#28a745{% endif %};">
+                        {{ warning }}
+                    </span>
+                </div>
+                
+                <!-- Email Status -->
+                <div class="email-summary-item">
+                    <span>📧 Email Status:</span>
+                    <span style="font-weight: bold; color: 
+                        {% if 'sent' in email_status|lower %}#28a745
+                        {% elif 'Failed' in email_status %}#dc3545
+                        {% elif email_status %}#ffc107
+                        {% else %}#6c757d{% endif %};">
+                        {{ email_status if email_status else '⏳ Not triggered' }}
+                    </span>
+                </div>
+                
+                <!-- Notification -->
+                <div class="email-summary-item" style="border-bottom: none;">
+                    <span>🔔 Notification:</span>
+                    <span style="font-weight: bold; color: 
+                        {% if expense > budget_limit and user_email %}#28a745
+                        {% elif expense > budget_limit and not user_email %}#dc3545
+                        {% else %}#6c757d{% endif %};">
+                        {% if expense > budget_limit and user_email %}
+                            ✅ Email sent to your Gmail
+                        {% elif expense > budget_limit and not user_email %}
+                            ⚠️ No email address found
+                        {% else %}
+                            ⏳ Budget under control
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Quick Action Buttons -->
+            <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+                <a href="/profile" style="flex: 1; text-decoration: none; min-width: 80px;">
+                    <button class="btn-email btn-primary" style="width: 100%;">✏️ Update Email</button>
+                </a>
+                <a href="/test-email" target="_blank" style="flex: 1; text-decoration: none; min-width: 80px;">
+                    <button class="btn-email btn-warning" style="width: 100%;">📧 Test Email</button>
+                </a>
+                <a href="/" style="flex: 1; text-decoration: none; min-width: 80px;">
+                    <button class="btn-email btn-secondary" style="width: 100%;">🔄 Refresh</button>
+                </a>
             </div>
         </div>
 

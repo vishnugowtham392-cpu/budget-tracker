@@ -105,6 +105,19 @@
         padding:10px;
     }
 
+    /* Email Summary mobile adjustments */
+    .email-summary-item{
+        flex-direction:column;
+        text-align:center;
+        gap:5px;
+    }
+
+    .btn-email{
+        min-width:80px;
+        font-size:12px;
+        padding:8px 12px;
+    }
+
     /* Header button */
     .header button{
         width:auto;
@@ -203,6 +216,12 @@
         padding:6px 12px;
         font-size:12px;
     }
+
+    .btn-email{
+        font-size:11px;
+        padding:6px 10px;
+        min-width:60px;
+    }
 }
 
 /* ================= PREDICTION CLASS ================= */
@@ -265,4 +284,397 @@
 
 .dark .prediction-status {
     background: rgba(255,255,255,0.15);
+}
+
+/* ================= EMAIL SUMMARY STYLES ================= */
+.email-summary-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.email-summary-item:last-child {
+    border-bottom: none;
+}
+
+.dark .email-summary-item {
+    border-bottom-color: #444;
+}
+
+/* Status Colors */
+.status-success {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.status-danger {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.status-warning {
+    color: #ffc107;
+    font-weight: bold;
+}
+
+.status-info {
+    color: #6c757d;
+    font-weight: bold;
+}
+
+/* Email Button Styles */
+.btn-email {
+    display: inline-block;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: 0.3s;
+    flex: 1;
+    min-width: 100px;
+}
+
+.btn-email:hover {
+    transform: scale(1.02);
+    opacity: 0.9;
+}
+
+.btn-primary {
+    background: #007bff;
+}
+
+.btn-warning {
+    background: #ffc107;
+    color: #333;
+}
+
+.btn-secondary {
+    background: #6c757d;
+}
+
+.btn-success {
+    background: #28a745;
+}
+
+.btn-danger {
+    background: #dc3545;
+}
+
+/* ================= DARK MODE ================= */
+.dark {
+    background: #121212;
+    color: #f1f1f1;
+    transition: 0.3s;
+}
+
+.dark .card {
+    background: #1e1e1e;
+    color: #f1f1f1;
+}
+
+.dark .dashboard {
+    background: #1e1e1e;
+    color: #f1f1f1;
+}
+
+.dark input,
+.dark select {
+    background: #2a2a2a;
+    color: #f1f1f1;
+    border: 1px solid #444;
+}
+
+.dark input[type="file"] {
+    background: #2a2a2a;
+    border-color: #28a745;
+    color: #f1f1f1;
+}
+
+.dark table {
+    color: #f1f1f1;
+}
+
+.dark th {
+    background: #1a5a2a;
+}
+
+.dark td {
+    border-bottom: 1px solid #444;
+}
+
+.dark .suggestion-item {
+    background: #2a2a2a;
+    border-left-color: #28a745;
+    color: #f1f1f1;
+}
+
+.dark .suggestion-item:hover {
+    background: #333333;
+}
+
+.dark .insight-text {
+    background: #2a2a2a;
+    border-left-color: #28a745;
+    color: #f1f1f1;
+}
+
+.dark a {
+    color: #66b3ff;
+}
+
+.dark .action {
+    color: #66b3ff;
+}
+
+.dark .btn-primary {
+    background: #0056b3;
+}
+
+.dark .btn-warning {
+    background: #e6a800;
+    color: #fff;
+}
+
+.dark .btn-secondary {
+    background: #5a6268;
+}
+
+.dark .btn-success {
+    background: #1e7e34;
+}
+
+.dark .btn-danger {
+    background: #b02a37;
+}
+
+/* ================= HEADER BUTTON ================= */
+.header button {
+    width: auto;
+    padding: 10px 20px;
+    margin-top: 10px;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #28a745;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.header button:hover {
+    background: #f1f1f1;
+    transform: scale(1.05);
+}
+
+.dark .header button {
+    background: #2a2a2a;
+    color: #28a745;
+}
+
+.dark .header button:hover {
+    background: #333333;
+}
+
+/* ================= GENERAL UTILITY CLASSES ================= */
+.text-center {
+    text-align: center;
+}
+
+.text-success {
+    color: #28a745;
+}
+
+.text-danger {
+    color: #dc3545;
+}
+
+.text-warning {
+    color: #ffc107;
+}
+
+.text-muted {
+    color: #6c757d;
+}
+
+.mt-10 {
+    margin-top: 10px;
+}
+
+.mt-15 {
+    margin-top: 15px;
+}
+
+.mt-20 {
+    margin-top: 20px;
+}
+
+.p-10 {
+    padding: 10px;
+}
+
+.p-15 {
+    padding: 15px;
+}
+
+.p-20 {
+    padding: 20px;
+}
+
+.flex {
+    display: flex;
+}
+
+.flex-between {
+    display: flex;
+    justify-content: space-between;
+}
+
+.flex-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.gap-10 {
+    gap: 10px;
+}
+
+.gap-15 {
+    gap: 15px;
+}
+
+.rounded-10 {
+    border-radius: 10px;
+}
+
+.rounded-15 {
+    border-radius: 15px;
+}
+
+.shadow-light {
+    box-shadow: 0px 0px 10px lightgray;
+}
+
+.shadow-medium {
+    box-shadow: 0px 0px 15px gray;
+}
+
+/* ================= RESPONSIVE FIXES FOR TABLETS ================= */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+    .container {
+        width: 95%;
+        padding: 15px;
+    }
+    
+    .profile-photo {
+        width: 70px;
+        height: 70px;
+    }
+    
+    .prediction-amount {
+        font-size: 30px;
+    }
+    
+    .email-summary-item {
+        font-size: 14px;
+    }
+}
+
+/* ================= ANIMATIONS ================= */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+/* ================= SCROLLBAR STYLING ================= */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #28a745;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #218838;
+}
+
+.dark ::-webkit-scrollbar-track {
+    background: #2a2a2a;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #1a5a2a;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #28a745;
+}
+
+/* ================= PRINT STYLES ================= */
+@media print {
+    .header {
+        background: #28a745 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ddd;
+    }
+    
+    .dark {
+        background: white !important;
+        color: black !important;
+    }
+    
+    .dark .card {
+        background: white !important;
+        color: black !important;
+    }
+    
+    .btn-email,
+    button {
+        display: none !important;
+    }
 }
