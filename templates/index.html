@@ -381,6 +381,69 @@
             background: #28a745;
         }
 
+        /* Notification Summary Styles */
+        .notification-box {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .notification-box-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+
+        .notification-box-danger {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+
+        .notification-box-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+        }
+
+        .notification-box-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+        }
+
+        .dark .notification-box-success {
+            background: #1e3a2a;
+            border-color: #2a5a3a;
+        }
+
+        .dark .notification-box-danger {
+            background: #3a1e1e;
+            border-color: #5a2a2a;
+        }
+
+        .dark .notification-box-info {
+            background: #1a2a3a;
+            border-color: #2a3a5a;
+        }
+
+        .dark .notification-box-warning {
+            background: #3a3a1a;
+            border-color: #5a5a2a;
+        }
+
+        .notification-icon {
+            font-size: 40px;
+        }
+
+        .notification-title {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .notification-text {
+            margin: 5px 0 0 0;
+            font-size: 14px;
+        }
+
         /* ================= DARK MODE ================= */
         .dark {
             background: #121212;
@@ -543,6 +606,11 @@
                 font-size: 12px;
                 padding: 8px 12px;
             }
+
+            .notification-box {
+                flex-direction: column;
+                text-align: center;
+            }
         }
 
         @media (max-width: 480px) {
@@ -665,26 +733,20 @@
             </div>
         </div>
 
-        <!-- ================= ADD TRANSACTION (Purpose instead of Title) ================= -->
+        <!-- ================= ADD TRANSACTION ================= -->
         <div class="card">
             <div class="title">➕ Add Transaction</div>
 
             <form method="POST">
-                <!-- Purpose (was Title) -->
                 <input type="text" name="title" placeholder="Purpose (e.g., Morning Food, Salary)" required>
-
-                <!-- Amount -->
                 <input type="number" name="amount" placeholder="Amount (e.g., 500)" step="0.01" required>
 
-                <!-- Type -->
                 <select name="type" id="type" onchange="toggleFields()" required>
                     <option value="income">💰 Income</option>
                     <option value="expense">💸 Expense</option>
                 </select>
 
-                <!-- ================= CATEGORY + ITEM (Shows only for Expense) ================= -->
                 <div id="expenseFields" style="display:none;">
-                    <!-- Category -->
                     <select name="category">
                         <option value="">Select Category</option>
                         <option value="Food">🍽 Food</option>
@@ -697,11 +759,9 @@
                         <option value="Others">📦 Others</option>
                     </select>
 
-                    <!-- Item -->
                     <input type="text" name="item" placeholder="Item (Idly / Dosai / Petrol / Bus)">
                 </div>
 
-                <!-- Date -->
                 <input type="date" name="date" required>
 
                 <button type="submit">Add Transaction</button>
@@ -738,7 +798,7 @@
             </div>
         </div>
 
-        <!-- ================= BUDGET LIMIT (UPDATED WITH RANGE SLIDER) ================= -->
+        <!-- ================= BUDGET LIMIT ================= -->
         <div class="card">
             <div class="title">⚙ Budget Limit</div>
 
@@ -774,92 +834,102 @@
             </div>
         </div>
 
-        <!-- ================= EMAIL NOTIFICATION SUMMARY ================= -->
+        <!-- ================= BUDGET NOTIFICATION SUMMARY ================= -->
         <div class="card">
-            <div class="title">📧 Email Notification Summary</div>
+            <div class="title">🔔 Budget Notification Summary</div>
             
-            <div style="padding: 10px; line-height: 2; font-size: 16px;">
-                <!-- User Email -->
-                <div class="email-summary-item">
-                    <span>📧 User Email:</span>
-                    <span style="font-weight: bold; color: #28a745;">
-                        {{ user_email if user_email else '⚠️ Not Set' }}
-                    </span>
-                </div>
-                
-                <!-- Budget Limit -->
-                <div class="email-summary-item">
-                    <span>💰 Budget Limit:</span>
-                    <span style="font-weight: bold; color: #28a745;">₹{{ budget_limit }}</span>
-                </div>
-                
-                <!-- Current Expense -->
-                <div class="email-summary-item">
-                    <span>💸 Current Expense:</span>
-                    <span style="font-weight: bold; color: {% if expense > budget_limit %}#dc3545{% else %}#28a745{% endif %};">
-                        ₹{{ expense }}
-                    </span>
-                </div>
-                
-                <!-- Excess Amount -->
-                {% if expense > budget_limit %}
-                <div class="email-summary-item">
-                    <span>🔴 Excess Amount:</span>
-                    <span style="font-weight: bold; color: #dc3545;">
-                        ₹{{ expense - budget_limit }}
-                    </span>
-                </div>
-                {% endif %}
-                
-                <!-- Status -->
-                <div class="email-summary-item">
-                    <span>📊 Status:</span>
-                    <span style="font-weight: bold; color: {% if expense > budget_limit %}#dc3545{% else %}#28a745{% endif %};">
-                        {{ warning }}
-                    </span>
-                </div>
-                
-                <!-- Email Status -->
-                <div class="email-summary-item">
-                    <span>📧 Email Status:</span>
-                    <span style="font-weight: bold; color: 
-                        {% if 'sent' in email_status|lower %}#28a745
-                        {% elif 'Failed' in email_status %}#dc3545
-                        {% elif email_status %}#ffc107
-                        {% else %}#6c757d{% endif %};">
-                        {{ email_status if email_status else '⏳ Not triggered' }}
-                    </span>
-                </div>
-                
-                <!-- Notification -->
-                <div class="email-summary-item" style="border-bottom: none;">
-                    <span>🔔 Notification:</span>
-                    <span style="font-weight: bold; color: 
-                        {% if expense > budget_limit and user_email %}#28a745
-                        {% elif expense > budget_limit and not user_email %}#dc3545
-                        {% else %}#6c757d{% endif %};">
+            <div style="padding: 15px;">
+                <!-- Notification Status -->
+                <div class="notification-box 
+                    {% if expense > budget_limit and user_email %}notification-box-success
+                    {% elif expense > budget_limit and not user_email %}notification-box-danger
+                    {% else %}notification-box-info{% endif %}">
+                    
+                    <div class="notification-icon">
                         {% if expense > budget_limit and user_email %}
-                            ✅ Email sent to your Gmail
+                            ✅
                         {% elif expense > budget_limit and not user_email %}
-                            ⚠️ No email address found
+                            ⚠️
                         {% else %}
-                            ⏳ Budget under control
+                            ℹ️
                         {% endif %}
-                    </span>
+                    </div>
+                    
+                    <div style="flex: 1;">
+                        <h3 class="notification-title" style="color: 
+                            {% if expense > budget_limit and user_email %}#155724
+                            {% elif expense > budget_limit and not user_email %}#721c24
+                            {% else %}#0c5460{% endif %};">
+                            {% if expense > budget_limit and user_email %}
+                                ✅ Budget Alert Email Sent!
+                            {% elif expense > budget_limit and not user_email %}
+                                ⚠️ No Email Address Found!
+                            {% else %}
+                                ℹ️ Budget is Under Control
+                            {% endif %}
+                        </h3>
+                        <p class="notification-text" style="color: 
+                            {% if expense > budget_limit and user_email %}#155724
+                            {% elif expense > budget_limit and not user_email %}#721c24
+                            {% else %}#0c5460{% endif %};">
+                            {% if expense > budget_limit and user_email %}
+                                A warning email has been sent to <strong>{{ user_email }}</strong>
+                            {% elif expense > budget_limit and not user_email %}
+                                Please update your email in <a href="/profile" style="color: #721c24;">Profile Settings</a>
+                            {% else %}
+                                Your current expense (₹{{ expense }}) is within the budget limit (₹{{ budget_limit }})
+                            {% endif %}
+                        </p>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Quick Action Buttons -->
-            <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-                <a href="/profile" style="flex: 1; text-decoration: none; min-width: 80px;">
-                    <button class="btn-email btn-primary" style="width: 100%;">✏️ Update Email</button>
-                </a>
-                <a href="/test-email" target="_blank" style="flex: 1; text-decoration: none; min-width: 80px;">
-                    <button class="btn-email btn-warning" style="width: 100%;">📧 Test Email</button>
-                </a>
-                <a href="/" style="flex: 1; text-decoration: none; min-width: 80px;">
-                    <button class="btn-email btn-secondary" style="width: 100%;">🔄 Refresh</button>
-                </a>
+                
+                <!-- Details Grid -->
+                <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                    <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 12px; color: #6c757d;">Budget Limit</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #28a745;">₹{{ budget_limit }}</div>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 12px; color: #6c757d;">Current Expense</div>
+                        <div style="font-size: 20px; font-weight: bold; color: {% if expense > budget_limit %}#dc3545{% else %}#28a745{% endif %};">
+                            ₹{{ expense }}
+                        </div>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 12px; color: #6c757d;">Email Status</div>
+                        <div style="font-size: 16px; font-weight: bold; color: 
+                            {% if 'sent' in email_status|lower %}#28a745
+                            {% elif 'Failed' in email_status %}#dc3545
+                            {% else %}#6c757d{% endif %};">
+                            {% if expense > budget_limit and user_email %}
+                                ✅ Sent
+                            {% elif expense > budget_limit and not user_email %}
+                                ❌ No Email
+                            {% else %}
+                                ⏳ Not Needed
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Action Button -->
+                <div style="margin-top: 15px; text-align: center;">
+                    {% if expense > budget_limit and user_email %}
+                        <a href="/test-email" target="_blank" style="text-decoration: none;">
+                            <button style="width: auto; padding: 10px 30px; background: #28a745; border: none; border-radius: 8px; color: white; cursor: pointer;">
+                                📧 Resend Notification
+                            </button>
+                        </a>
+                    {% elif expense > budget_limit and not user_email %}
+                        <a href="/profile" style="text-decoration: none;">
+                            <button style="width: auto; padding: 10px 30px; background: #007bff; border: none; border-radius: 8px; color: white; cursor: pointer;">
+                                ✏️ Add Email Address
+                            </button>
+                        </a>
+                    {% else %}
+                        <span style="color: #6c757d; font-size: 14px;">✅ Everything looks good!</span>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
@@ -993,7 +1063,6 @@
         function toggleDark() {
             document.body.classList.toggle("dark");
 
-            // Update button text
             const btn = document.querySelector(".header button");
             if (document.body.classList.contains("dark")) {
                 btn.textContent = "☀️ Light Mode";
@@ -1004,7 +1073,7 @@
             }
         }
 
-        // Toggle Category & Item visibility based on Type selection
+        // Toggle Category & Item visibility
         function toggleFields() {
             let type = document.getElementById("type").value;
             let expenseFields = document.getElementById("expenseFields");
@@ -1024,17 +1093,14 @@
 
         // Load saved preference and initialize
         window.onload = function() {
-            // Dark mode
             if (localStorage.getItem("mode") === "dark") {
                 document.body.classList.add("dark");
                 const btn = document.querySelector(".header button");
                 if (btn) btn.textContent = "☀️ Light Mode";
             }
 
-            // Initialize category & item visibility
             toggleFields();
 
-            // Enter key support for chatbot
             document.getElementById("msg").addEventListener("keypress", function(e) {
                 if (e.key === "Enter") {
                     sendMsg();

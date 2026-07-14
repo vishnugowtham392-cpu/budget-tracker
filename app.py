@@ -28,8 +28,8 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'vishnugowtham392@gmail.com'
-app.config['MAIL_PASSWORD'] = 'your_16_char_app_password'  # REPLACE WITH APP PASSWORD
+app.config['MAIL_USERNAME'] = 'vishnugowtham392@gmail.com'  # REPLACE WITH YOUR GMAIL
+app.config['MAIL_PASSWORD'] = 'brdxtgyqobiwjeel'  # REPLACE WITH APP PASSWORD
 app.config['MAIL_DEFAULT_SENDER'] = 'vishnugowtham392@gmail.com'
 app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
@@ -54,12 +54,13 @@ def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # STEP 2 - Modified Users Table with email field
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE,
-                password TEXT,
                 email TEXT,
+                password TEXT,
                 photo TEXT DEFAULT 'default.png'
             )
         """)
@@ -109,7 +110,7 @@ def handle_exception(e):
     return f"Error: {error_msg}", 500
 
 # ================= EMAIL WARNING FUNCTION =================
-def send_budget_warning_email(email, username, expense, budget_limit):
+def send_warning_email(email, username, expense, budget_limit):
     print("=" * 60)
     print("📧 SEND_WARNING_EMAIL() CALLED")
     print(f"📧 To: {email}")
@@ -181,11 +182,12 @@ def test_email():
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == "POST":
+        # STEP 3 - Modified Signup to include email
         username = request.form['username'].strip()
-        password = request.form['password'].strip()
         email = request.form['email'].strip()
+        password = request.form['password'].strip()
         
-        if not username or not password or not email:
+        if not username or not email or not password:
             flash("All fields are required!")
             return render_template("signup.html")
         
@@ -201,10 +203,11 @@ def signup():
                 conn.close()
                 return render_template("signup.html")
             
+            # STEP 3 - Insert with email
             cursor.execute("""
-                INSERT INTO users (username, password, email)
+                INSERT INTO users (username, email, password)
                 VALUES (?, ?, ?)
-            """, (username, password, email))
+            """, (username, email, password))
             
             conn.commit()
             conn.close()
@@ -238,7 +241,7 @@ def login():
                 conn.close()
                 
                 if user:
-                    if user[2] == password:
+                    if user[3] == password:  # password is now at index 3
                         session['user'] = username
                         return redirect('/')
                     else:
@@ -452,8 +455,9 @@ def home():
         print(f"📧 User Email: {user_email}")
         print("=" * 60)
         
+        # STEP 4 - Send email using user's email from database
         if user_email:
-            success, message = send_budget_warning_email(user_email, username, expense, budget_limit)
+            success, message = send_warning_email(user_email, username, expense, budget_limit)
             if success:
                 email_status = f"✅ Budget warning email sent to {user_email}"
                 flash(email_status)
