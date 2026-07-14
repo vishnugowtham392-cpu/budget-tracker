@@ -4,6 +4,8 @@ import sqlite3
 import os
 import csv
 import traceback
+import sys
+import logging
 from werkzeug.utils import secure_filename
 import matplotlib
 matplotlib.use('Agg')
@@ -14,6 +16,10 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
 
+# ================= LOGGING =================
+logging.basicConfig(level=logging.DEBUG)
+print("🚀 Starting Budget Tracker...")
+
 app = Flask(__name__)
 app.secret_key = "budgettracker"
 
@@ -22,8 +28,8 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'vishnugowtham392@gmail.com'  # YOUR GMAIL
-app.config['MAIL_PASSWORD'] = 'your_16_char_app_password'    # REPLACE WITH APP PASSWORD
+app.config['MAIL_USERNAME'] = 'vishnugowtham392@gmail.com'
+app.config['MAIL_PASSWORD'] = 'your_16_char_app_password'  # REPLACE WITH APP PASSWORD
 app.config['MAIL_DEFAULT_SENDER'] = 'vishnugowtham392@gmail.com'
 app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
@@ -74,7 +80,6 @@ def init_db():
         conn.commit()
         conn.close()
         print("✅ Database initialized successfully!")
-        print(f"📁 Database path: {DATABASE_PATH}")
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         raise
@@ -90,6 +95,11 @@ app.config['UPLOAD_FOLDER'] = "static/uploads"
 budget_limit = 5000
 init_db()
 
+# ================= HEALTH CHECK =================
+@app.route('/health')
+def health():
+    return "OK", 200
+
 # ================= ERROR HANDLING =================
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -98,7 +108,7 @@ def handle_exception(e):
     print(traceback.format_exc())
     return f"Error: {error_msg}", 500
 
-# ================= EMAIL WARNING FUNCTION (WORKING) =================
+# ================= EMAIL WARNING FUNCTION =================
 def send_budget_warning_email(email, username, expense, budget_limit):
     print("=" * 60)
     print("📧 SEND_WARNING_EMAIL() CALLED")
@@ -138,8 +148,6 @@ Your budget limit has been exceeded.
 4. Use public transport
 5. Cancel unused subscriptions
 
-🔥 Motivation: "Every rupee saved is a rupee earned!"
-
 Stay on track! 💰
 
 - Budget Analysis System
@@ -152,49 +160,22 @@ Stay on track! 💰
         
     except Exception as e:
         print("❌ Mail Error:", str(e))
-        print("❌ Error Type:", type(e).__name__)
         return False, str(e)
 
 # ================= TEST EMAIL ROUTE =================
 @app.route('/test-email')
 def test_email():
     try:
-        print("=" * 50)
-        print("📧 Testing email configuration...")
-        print(f"📧 From: {app.config['MAIL_USERNAME']}")
-        print(f"📧 To: {app.config['MAIL_USERNAME']}")
-        print("=" * 50)
-        
         msg = Message(
             subject="✅ Test Email from Budget Tracker",
             sender=app.config['MAIL_USERNAME'],
             recipients=[app.config['MAIL_USERNAME']]
         )
-        msg.body = """
-✅ Test Email from Budget Tracker!
-
-If you received this, your email configuration is working perfectly.
-
-🎉 Your Budget Analysis System is ready to send notifications!
-
-- Budget Analysis System
-        """
+        msg.body = "✅ Test email from Budget Tracker!"
         mail.send(msg)
-        print("✅ Test email sent successfully!")
-        return """
-        <h1>✅ Test Email Sent!</h1>
-        <p>Check your Gmail inbox: <b>""" + app.config['MAIL_USERNAME'] + """</b></p>
-        <p>If you don't see it, check your Spam folder.</p>
-        <a href="/">⬅ Back to Dashboard</a>
-        """
+        return "✅ Test email sent! Check your inbox."
     except Exception as e:
-        print(f"❌ Test email failed: {e}")
-        return f"""
-        <h1>❌ Test Email Failed!</h1>
-        <p>Error: {str(e)}</p>
-        <p>Check your Gmail and App Password configuration.</p>
-        <a href="/">⬅ Back to Dashboard</a>
-        """
+        return f"❌ Failed: {str(e)}"
 
 # ================= SIGNUP =================
 @app.route('/signup', methods=['GET', 'POST'])
@@ -212,7 +193,6 @@ def signup():
             conn = get_db_connection()
             cursor = conn.cursor()
             
-            # Check if username already exists
             cursor.execute("SELECT username FROM users WHERE username=?", (username,))
             existing_user = cursor.fetchone()
             
@@ -221,7 +201,6 @@ def signup():
                 conn.close()
                 return render_template("signup.html")
             
-            # Insert new user
             cursor.execute("""
                 INSERT INTO users (username, password, email)
                 VALUES (?, ?, ?)
@@ -235,7 +214,6 @@ def signup():
             
         except Exception as e:
             print(f"Signup error: {e}")
-            print(traceback.format_exc())
             flash(f"Error: {str(e)}")
             return render_template("signup.html")
     
@@ -285,7 +263,6 @@ def set_limit():
     global budget_limit
     budget_limit = int(request.form['limit'])
     
-    # Validate the limit is between 1000 and 10000
     if budget_limit < 1000:
         budget_limit = 1000
     elif budget_limit > 10000:
@@ -404,7 +381,6 @@ def home():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # GET USER PROFILE DATA
     try:
         cursor.execute("SELECT email, photo FROM users WHERE username=?", (username,))
         user_data = cursor.fetchone()
@@ -415,7 +391,6 @@ def home():
         user_email = ""
         user_photo = "default.png"
     
-    # ================= ADD TRANSACTION =================
     if request.method == "POST":
         title = request.form['title']
         amount = float(request.form['amount'])
@@ -436,7 +411,6 @@ def home():
         """, (username, title, amount, ttype, category, item, date))
         conn.commit()
     
-    # FETCH DATA
     cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     transactions = cursor.fetchall()
     
@@ -505,12 +479,10 @@ def home():
     
     saving_goal = int(income * 0.20)
     
-    # ================= TOP CATEGORY =================
     top_category = "None"
     if category_data:
         top_category = max(category_data, key=category_data.get)
     
-    # ================= SMART INSIGHTS =================
     category_total = {}
     most_expense = 0
     most_item = "None"
@@ -539,69 +511,16 @@ def home():
 💰 Estimated Monthly Savings: ₹{estimated_save}
 """
     
-    # ================= SMART AI SAVING SYSTEM =================
+    suggestions = []
+    
     smart_items = {
         "idli": {"alternative": "Home-made Idli 🥣", "reason": "Home food usually costs less", "benefit": "Healthy breakfast + lower spending", "motivation": "Healthy mornings create healthy savings 🌞"},
         "dosai": {"alternative": "Idli 🥣", "reason": "Less oil and lower cost", "benefit": "Healthy and saves money", "motivation": "Small savings create big results 💪"},
-        "dosa": {"alternative": "Idli 🥣", "reason": "Less oil and lower cost", "benefit": "Healthy and saves money", "motivation": "Small savings create big results 💪"},
-        "poori": {"alternative": "Chapathi 🌮", "reason": "Poori contains more oil", "benefit": "Healthier option", "motivation": "Choose smart food choices 🏃"},
-        "pongal": {"alternative": "Ragi Porridge 🌾", "reason": "Nutritious and economical", "benefit": "Energy + savings", "motivation": "Healthy body, healthy wallet ✨"},
-        "chapathi": {"alternative": "Home-made Chapathi 🌮", "reason": "Outside chapathi costs more", "benefit": "Save money + healthy food", "motivation": "Home food is always best 🏠"},
-        "briyani": {"alternative": "Meals 🍛", "reason": "Briyani often costs more", "benefit": "Balanced food + save money", "motivation": "Reduce cost without losing satisfaction 😄"},
-        "biryani": {"alternative": "Meals 🍛", "reason": "Briyani often costs more", "benefit": "Balanced food + save money", "motivation": "Reduce cost without losing satisfaction 😄"},
-        "fried rice": {"alternative": "Lemon Rice 🍋", "reason": "Simple foods cost less", "benefit": "Save money + lighter food", "motivation": "Simple habits grow savings 💰"},
-        "noodles": {"alternative": "Veg Pasta 🍝", "reason": "Noodles are processed food", "benefit": "Healthy alternative + savings", "motivation": "Eat healthy, save money 🌟"},
-        "meals": {"alternative": "Mini Meals 🍽", "reason": "Large meals increase spending", "benefit": "Reduce unnecessary expense", "motivation": "Spend wisely 🎯"},
-        "thali": {"alternative": "Mini Meals 🍽", "reason": "Large thali costs more", "benefit": "Save money + less food waste", "motivation": "Eat less, save more 💰"},
-        "pizza": {"alternative": "Home-made Pizza 🍕", "reason": "Outside pizza costs more", "benefit": "Same taste + less cost", "motivation": "Make pizza at home 🏠"},
-        "burger": {"alternative": "Sandwich 🥪", "reason": "Fast food is expensive", "benefit": "Healthy + savings", "motivation": "Homemade is always better 🏠"},
         "chips": {"alternative": "Fruits 🍎", "reason": "Chips are processed snacks", "benefit": "Better nutrition + savings", "motivation": "Healthy snacks, healthy life 🌟"},
-        "biscuit": {"alternative": "Home-made Snacks 🍪", "reason": "Packaged biscuits are expensive", "benefit": "Save money + eat healthy", "motivation": "Home snacks are best 🏠"},
-        "samosa": {"alternative": "Idli 🥣", "reason": "Samosa is oily and expensive", "benefit": "Healthy food + savings", "motivation": "Choose healthy snacks 💪"},
-        "vada": {"alternative": "Idli 🥣", "reason": "Vada is deep fried", "benefit": "Less oil + save money", "motivation": "Healthy choices matter 🌟"},
-        "bonda": {"alternative": "Idli 🥣", "reason": "Bonda is oily", "benefit": "Healthy alternative + savings", "motivation": "Smart snack choices 💪"},
-        "pakoda": {"alternative": "Fruits 🍎", "reason": "Pakoda is deep fried", "benefit": "Healthy + save money", "motivation": "Choose fruits over fried 🍎"},
-        "tea": {"alternative": "Home-made Tea ☕", "reason": "Daily outside tea adds up", "benefit": "Reduce repeated expenses", "motivation": "₹20/day ≈ ₹600/month 💰"},
-        "chai": {"alternative": "Home-made Tea ☕", "reason": "Daily outside tea adds up", "benefit": "Reduce repeated expenses", "motivation": "₹20/day ≈ ₹600/month 💰"},
-        "coffee": {"alternative": "Milk/Home Coffee 🥛", "reason": "Outside coffee is expensive", "benefit": "Lower cost", "motivation": "Save little, gain more 🚀"},
-        "cool drink": {"alternative": "Lemon Juice 🍋", "reason": "Cool drinks are unhealthy", "benefit": "Healthy + savings", "motivation": "Choose natural drinks 🌿"},
-        "juice": {"alternative": "Home-made Juice 🥤", "reason": "Outside juice costs more", "benefit": "Save money + healthy", "motivation": "Home juice is best 🏠"},
-        "parotta": {"alternative": "Chapathi 🌮", "reason": "Heavy oily foods affect health", "benefit": "Better digestion + savings", "motivation": "Healthy nights matter 🌙"},
-        "shawarma": {"alternative": "Chapathi Roll 🌯", "reason": "Fast food costs more", "benefit": "Healthy and economical", "motivation": "Smart food, smart future 💪"},
-        "movie": {"alternative": "Watch OTT 📺", "reason": "Theatre ticket + snacks increase spending", "benefit": "Lower entertainment cost", "motivation": "Enjoy more, spend less 🎬"},
-        "cinema": {"alternative": "Watch OTT 📺", "reason": "Theatre ticket + snacks increase spending", "benefit": "Lower entertainment cost", "motivation": "Enjoy more, spend less 🎬"},
-        "theatre": {"alternative": "Watch with OTT Subscription 📺", "reason": "Travel + tickets + snacks increase expense", "benefit": "Entertainment at lower cost", "motivation": "Entertainment + savings balance 💰"},
-        "popcorn": {"alternative": "Home Snacks 🍿", "reason": "Theatre snacks are expensive", "benefit": "Same enjoyment with lower cost", "motivation": "Small snack savings become big savings 😄"},
-        "gaming": {"alternative": "Free Games 🎮", "reason": "Paid games increase expenses", "benefit": "Same fun + savings", "motivation": "Free games are also fun 🎮"},
-        "netflix": {"alternative": "Watch Free Content 📺", "reason": "Multiple subscriptions cost more", "benefit": "Save on subscriptions", "motivation": "Watch content wisely 📺"},
-        "amazon prime": {"alternative": "Watch Free Content 📺", "reason": "Multiple subscriptions cost more", "benefit": "Save on subscriptions", "motivation": "Watch content wisely 📺"},
         "petrol": {"alternative": "Public Transport 🚌", "reason": "Fuel costs increase over time", "benefit": "Reduce travel expenses", "motivation": "Travel smart 🌍"},
-        "diesel": {"alternative": "Public Transport 🚌", "reason": "Fuel costs increase over time", "benefit": "Reduce travel expenses", "motivation": "Travel smart 🌍"},
-        "bus": {"alternative": "Cycle/Shared Auto 🚲", "reason": "Daily bus fare adds up", "benefit": "Save on daily travel", "motivation": "Cycle more, save more 🌿"},
-        "auto": {"alternative": "Public Bus 🚌", "reason": "Auto fares are higher", "benefit": "Save on travel", "motivation": "Choose cheaper transport 💰"},
-        "cab": {"alternative": "Public Transport 🚌", "reason": "Cab is expensive", "benefit": "Save money on travel", "motivation": "Save money, travel smart 🚌"},
-        "uber": {"alternative": "Public Transport 🚌", "reason": "Uber is expensive", "benefit": "Save money on travel", "motivation": "Choose cheaper options 🚌"},
-        "ola": {"alternative": "Public Transport 🚌", "reason": "Ola is expensive", "benefit": "Save money on travel", "motivation": "Choose cheaper options 🚌"},
-        "bike": {"alternative": "Public Transport 🚌", "reason": "Bike maintenance + fuel costs", "benefit": "Reduce expenses", "motivation": "Travel smart, save money 💰"},
-        "car": {"alternative": "Public Transport 🚌", "reason": "Car maintenance + fuel + parking", "benefit": "Save a lot on travel", "motivation": "Public transport saves money 🌍"},
-        "flight": {"alternative": "Train Journey 🚂", "reason": "Flights are expensive", "benefit": "Save money on travel", "motivation": "Train journeys are scenic and cheap 🚂"},
-        "water bottle": {"alternative": "Carry Water Bottle 🚰", "reason": "Daily purchases increase cost", "benefit": "Reduce daily expenses", "motivation": "Daily savings become monthly savings 💧"},
-        "mobile recharge": {"alternative": "Long-term Plan 📱", "reason": "Frequent recharges cost more", "benefit": "Better value", "motivation": "Spend once and save more 💡"},
-        "electricity": {"alternative": "Use Energy Efficient Devices 💡", "reason": "High electricity bills", "benefit": "Reduce monthly bills", "motivation": "Save power, save money 💡"},
-        "medicine": {"alternative": "Generic Medicine 💊", "reason": "Branded medicines cost more", "benefit": "Same effect + savings", "motivation": "Generic medicines are equally effective 💊"},
-        "clothes": {"alternative": "Season Sale Shopping 👕", "reason": "Regular prices are high", "benefit": "Save on shopping", "motivation": "Sale shopping saves money 🛍"},
-        "gym": {"alternative": "Home Workout 💪", "reason": "Gym membership is expensive", "benefit": "Save money + flexible timing", "motivation": "Home workout is also effective 💪"},
-        "books": {"alternative": "Library Books 📚", "reason": "New books are expensive", "benefit": "Save money on books", "motivation": "Libraries are treasure 🏛"},
-        "courses": {"alternative": "Free Online Courses 📖", "reason": "Paid courses are expensive", "benefit": "Same knowledge + free", "motivation": "Learn for free 🎓"},
-        "salon": {"alternative": "Home Grooming 💇", "reason": "Salon visits are expensive", "benefit": "Save money", "motivation": "Learn home grooming 💇"},
-        "haircut": {"alternative": "Local Barber 💇", "reason": "Premium salons cost more", "benefit": "Save money", "motivation": "Local barbers are cheaper 💇"},
-        "hotel": {"alternative": "Hostel/Home Stay 🏠", "reason": "Hotels are expensive", "benefit": "Save on accommodation", "motivation": "Budget stays are good 🏠"},
-        "tour": {"alternative": "Budget Travel 🎒", "reason": "Luxury tours are expensive", "benefit": "Save money", "motivation": "Budget travel is fun 🎒"},
-        "foreign trip": {"alternative": "Domestic Trip 🇮🇳", "reason": "Foreign trips are expensive", "benefit": "Save money + explore India", "motivation": "India has many beautiful places 🇮🇳"}
+        "tea": {"alternative": "Home-made Tea ☕", "reason": "Daily outside tea adds up", "benefit": "Reduce repeated expenses", "motivation": "₹20/day ≈ ₹600/month 💰"},
+        "coffee": {"alternative": "Milk/Home Coffee 🥛", "reason": "Outside coffee is expensive", "benefit": "Lower cost", "motivation": "Save little, gain more 🚀"},
     }
-    
-    # ================= GENERATE SMART SUGGESTIONS =================
-    suggestions = []
     
     for t in transactions:
         try:
@@ -631,7 +550,6 @@ def home():
     if not suggestions:
         suggestions.append("✅ Spending looks balanced. Keep saving! 💪")
     
-    # ================= CHARTS =================
     try:
         plt.figure()
         if income > 0 or expense > 0:
@@ -893,5 +811,5 @@ def delete(id):
 
 # ================= RUN =================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False)
