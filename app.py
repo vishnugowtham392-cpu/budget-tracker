@@ -7,7 +7,7 @@ import traceback
 from werkzeug.utils import secure_filename
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot asplt
+import matplotlib.pyplot as plt
 from flask_mail import Mail, Message
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -17,17 +17,24 @@ from collections import Counter, defaultdict
 app = Flask(__name__)
 app.secret_key = "budgettracker"
 
-# ================= DATABASE CONNECTION (SQLITE ONLY) =================
-# Get the absolute path to the database
+# ================= EMAIL CONFIG =================
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = 'yourgmail@gmail.com'      # <-- REPLACE WITH YOUR GMAIL
+app.config['MAIL_PASSWORD'] = 'your_app_password'        # <-- REPLACE WITH APP PASSWORD
+app.config['MAIL_DEFAULT_SENDER'] = 'yourgmail@gmail.com'
+app.config['MAIL_DEBUG'] = True
+mail = Mail(app)
+
+# ================= DATABASE CONNECTION =================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, "database", "budget.db")
 
 def get_db_connection():
-    """Get SQLite database connection"""
     try:
-        # Ensure database directory exists
         os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
-        
         conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
         return conn
@@ -36,12 +43,10 @@ def get_db_connection():
         raise
 
 def init_db():
-    """Initialize database tables"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Create users table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,7 +57,6 @@ def init_db():
             )
         """)
         
-        # Create transactions table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,24 +73,9 @@ def init_db():
         conn.commit()
         conn.close()
         print("✅ Database initialized successfully!")
-        print(f"📁 Database path: {DATABASE_PATH}")
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
-        print(traceback.format_exc())
         raise
-
-# ================= UPLOAD SETTINGS =================
-app.config['UPLOAD_FOLDER'] = "static/uploads"
-
-# ================= EMAIL CONFIG =================
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'yourgmail@gmail.com'
-app.config['MAIL_PASSWORD'] = 'your_app_password'
-mail = Mail(app)
-
-budget_limit = 5000
 
 # ================= FOLDERS =================
 os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
@@ -95,35 +84,96 @@ os.makedirs(os.path.join(BASE_DIR, "uploads"), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, "static", "profiles"), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, "static", "uploads"), exist_ok=True)
 
-# ================= DATABASE INIT =================
+app.config['UPLOAD_FOLDER'] = "static/uploads"
+budget_limit = 5000
 init_db()
 
 # ================= ERROR HANDLING =================
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """Handle all exceptions and return error message"""
     error_msg = str(e)
     print(f"❌ Error: {error_msg}")
     print(traceback.format_exc())
     return f"Error: {error_msg}", 500
 
-# ================= EMAIL WARNING =================
-def send_warning_email(email, username, expense):
+# ================= EMAIL WARNING FUNCTION (WITH PRINT STATEMENTS) =================
+def send_budget_warning_email(email, username, expense, budget_limit):
     try:
+        print("===================================")
+        print("📧 Preparing to send email...")
+        print(f"To : {email}")
+        print(f"User : {username}")
+        print(f"Expense : ₹{expense}")
+        print(f"Budget Limit : ₹{budget_limit}")
+        print("===================================")
+        
+        if not email or email == "":
+            print("❌ No email address found!")
+            return False, "No email address found"
+            
         msg = Message(
-            "Budget Warning 🚨",
+            subject="🚨 Budget Alert - Budget Analysis System",
             sender=app.config['MAIL_USERNAME'],
             recipients=[email]
         )
+        
         msg.body = f"""
-Hello {username}
-Your budget limit exceeded.
-Expense: {expense}
-Please reduce spending.
-"""
+Hello {username},
+
+🚨 Budget Limit Alert 🚨
+
+Your budget limit has been exceeded.
+
+📊 Budget Summary:
+• Budget Limit: ₹{budget_limit}
+• Current Expense: ₹{expense}
+• Excess Amount: ₹{expense - budget_limit}
+
+💡 Suggestions:
+1. Track your daily expenses
+2. Avoid unnecessary shopping
+3. Cook at home instead of ordering
+4. Use public transport
+5. Cancel unused subscriptions
+
+Stay on track! 💰
+
+- Budget Analysis System
+        """
+        
+        print("📧 Sending email...")
         mail.send(msg)
+        print("✅ Email sent successfully!")
+        return True, "Email sent successfully"
+        
     except Exception as e:
-        print("Mail Error:", e)
+        print("❌ Email sending failed!")
+        print(f"Error: {e}")
+        print(f"Error Type: {type(e).__name__}")
+        print(traceback.format_exc())
+        return False, str(e)
+
+# ================= TEST EMAIL ROUTE =================
+@app.route('/test-email')
+def test_email():
+    try:
+        print("===================================")
+        print("📧 Testing email configuration...")
+        print(f"Using Gmail: {app.config['MAIL_USERNAME']}")
+        print("===================================")
+        
+        msg = Message(
+            subject="Test Email from Budget Tracker",
+            sender=app.config['MAIL_USERNAME'],
+            recipients=[app.config['MAIL_USERNAME']]
+        )
+        msg.body = "✅ Test email from Budget Tracker!"
+        mail.send(msg)
+        print("✅ Test email sent successfully!")
+        return "✅ Test email sent! Check your inbox."
+    except Exception as e:
+        print(f"❌ Test email failed: {e}")
+        return f"❌ Failed: {str(e)}"
 
 # ================= SIGNUP =================
 @app.route('/signup', methods=['GET', 'POST'])
@@ -177,7 +227,6 @@ def login():
                 conn.close()
                 
                 if user:
-                    # Check password (index 2)
                     if user[2] == password:
                         session['user'] = username
                         return redirect('/')
@@ -202,6 +251,7 @@ def logout():
 def set_limit():
     global budget_limit
     budget_limit = int(request.form['limit'])
+    flash(f"✅ Budget limit set to ₹{budget_limit}")
     return redirect('/')
 
 # ================= PROFILE SETTINGS =================
@@ -219,7 +269,6 @@ def profile():
         email = request.form['email'].strip()
         password = request.form['password'].strip()
         
-        # Handle photo upload
         photo = request.files.get('photo')
         filename = None
         
@@ -374,6 +423,33 @@ def home():
         
         monthly_data[month] = monthly_data.get(month, 0) + abs(amt)
     
+    # ================= BUDGET CHECK & EMAIL ALERT =================
+    warning = "✅ Budget Under Control"
+    email_status = ""
+    
+    if expense > budget_limit:
+        warning = "⚠️ Budget Exceeded!"
+        
+        print("===================================")
+        print("🚨 Budget Exceeded!")
+        print(f"User: {username}")
+        print(f"Expense: ₹{expense}")
+        print(f"Budget Limit: ₹{budget_limit}")
+        print(f"User Email: {user_email}")
+        print("===================================")
+        
+        if user_email:
+            success, message = send_budget_warning_email(user_email, username, expense, budget_limit)
+            if success:
+                email_status = "✅ Budget warning email sent to your email"
+                flash(email_status)
+            else:
+                email_status = f"❌ Failed to send email: {message}"
+                flash(email_status)
+        else:
+            email_status = "⚠️ No email address found. Please update your profile."
+            flash(email_status)
+    
     # ================= AI EXPENSE PREDICTION =================
     future_expense = int(expense * 1.10)
     
@@ -381,7 +457,7 @@ def home():
         prediction_status = "📈 Good Financial Growth"
         prediction_msg = "Your savings pattern is improving. Keep maintaining spending discipline."
     elif expense == income:
-        prediction_status = "⚠ Balanced Spending"
+        prediction_status = "⚠️ Balanced Spending"
         prediction_msg = "Income and expenses are equal. Try increasing savings."
     else:
         prediction_status = "🚨 High Expense Alert"
@@ -393,11 +469,6 @@ def home():
     top_category = "None"
     if category_data:
         top_category = max(category_data, key=category_data.get)
-    
-    # WARNING
-    warning = "✅ Budget Under Control"
-    if expense > budget_limit:
-        warning = "⚠ Budget Exceeded"
     
     # ================= SMART INSIGHTS =================
     category_total = {}
@@ -430,618 +501,37 @@ def home():
     
     # ================= SMART AI SAVING SYSTEM =================
     smart_items = {
-        "idli": {
-            "alternative": "Home-made Idli 🥣",
-            "reason": "Home food usually costs less",
-            "benefit": "Healthy breakfast + lower spending",
-            "motivation": "Healthy mornings create healthy savings 🌞"
-        },
-        "dosai": {
-            "alternative": "Idli 🥣",
-            "reason": "Less oil and lower cost",
-            "benefit": "Healthy and saves money",
-            "motivation": "Small savings create big results 💪"
-        },
-        "dosa": {
-            "alternative": "Idli 🥣",
-            "reason": "Less oil and lower cost",
-            "benefit": "Healthy and saves money",
-            "motivation": "Small savings create big results 💪"
-        },
-        "poori": {
-            "alternative": "Chapathi 🌮",
-            "reason": "Poori contains more oil",
-            "benefit": "Healthier option",
-            "motivation": "Choose smart food choices 🏃"
-        },
-        "puri": {
-            "alternative": "Chapathi 🌮",
-            "reason": "Poori contains more oil",
-            "benefit": "Healthier option",
-            "motivation": "Choose smart food choices 🏃"
-        },
-        "pongal": {
-            "alternative": "Ragi Porridge 🌾",
-            "reason": "Nutritious and economical",
-            "benefit": "Energy + savings",
-            "motivation": "Healthy body, healthy wallet ✨"
-        },
-        "uppuma": {
-            "alternative": "Oats Porridge 🥣",
-            "reason": "Uppuma contains more oil",
-            "benefit": "Better nutrition + savings",
-            "motivation": "Healthy food, healthy life 💪"
-        },
-        "upma": {
-            "alternative": "Oats Porridge 🥣",
-            "reason": "Upma contains more oil",
-            "benefit": "Better nutrition + savings",
-            "motivation": "Healthy food, healthy life 💪"
-        },
-        "chapathi": {
-            "alternative": "Home-made Chapathi 🌮",
-            "reason": "Outside chapathi costs more",
-            "benefit": "Save money + healthy food",
-            "motivation": "Home food is always best 🏠"
-        },
-        "chapati": {
-            "alternative": "Home-made Chapathi 🌮",
-            "reason": "Outside chapathi costs more",
-            "benefit": "Save money + healthy food",
-            "motivation": "Home food is always best 🏠"
-        },
-        "omelette": {
-            "alternative": "Boiled Egg 🥚",
-            "reason": "Omelette uses more oil",
-            "benefit": "Healthy protein + less oil",
-            "motivation": "Healthy eating, healthy savings 💪"
-        },
-        "bread": {
-            "alternative": "Home-made Chapathi 🌮",
-            "reason": "Bread is processed food",
-            "benefit": "Fresh and healthy food",
-            "motivation": "Fresh food is always better 🏠"
-        },
-        "briyani": {
-            "alternative": "Meals 🍛",
-            "reason": "Briyani often costs more",
-            "benefit": "Balanced food + save money",
-            "motivation": "Reduce cost without losing satisfaction 😄"
-        },
-        "biryani": {
-            "alternative": "Meals 🍛",
-            "reason": "Briyani often costs more",
-            "benefit": "Balanced food + save money",
-            "motivation": "Reduce cost without losing satisfaction 😄"
-        },
-        "fried rice": {
-            "alternative": "Lemon Rice 🍋",
-            "reason": "Simple foods cost less",
-            "benefit": "Save money + lighter food",
-            "motivation": "Simple habits grow savings 💰"
-        },
-        "noodles": {
-            "alternative": "Veg Pasta 🍝",
-            "reason": "Noodles are processed food",
-            "benefit": "Healthy alternative + savings",
-            "motivation": "Eat healthy, save money 🌟"
-        },
-        "meals": {
-            "alternative": "Mini Meals 🍽",
-            "reason": "Large meals increase spending",
-            "benefit": "Reduce unnecessary expense",
-            "motivation": "Spend wisely 🎯"
-        },
-        "thali": {
-            "alternative": "Mini Meals 🍽",
-            "reason": "Large thali costs more",
-            "benefit": "Save money + less food waste",
-            "motivation": "Eat less, save more 💰"
-        },
-        "pizza": {
-            "alternative": "Home-made Pizza 🍕",
-            "reason": "Outside pizza costs more",
-            "benefit": "Same taste + less cost",
-            "motivation": "Make pizza at home 🏠"
-        },
-        "burger": {
-            "alternative": "Sandwich 🥪",
-            "reason": "Fast food is expensive",
-            "benefit": "Healthy + savings",
-            "motivation": "Homemade is always better 🏠"
-        },
-        "sandwich": {
-            "alternative": "Home-made Sandwich 🥪",
-            "reason": "Outside sandwich costs more",
-            "benefit": "Fresh and healthy",
-            "motivation": "Home food is always fresh 🏠"
-        },
-        "chips": {
-            "alternative": "Fruits 🍎",
-            "reason": "Chips are processed snacks",
-            "benefit": "Better nutrition + savings",
-            "motivation": "Healthy snacks, healthy life 🌟"
-        },
-        "biscuit": {
-            "alternative": "Home-made Snacks 🍪",
-            "reason": "Packaged biscuits are expensive",
-            "benefit": "Save money + eat healthy",
-            "motivation": "Home snacks are best 🏠"
-        },
-        "samosa": {
-            "alternative": "Idli 🥣",
-            "reason": "Samosa is oily and expensive",
-            "benefit": "Healthy food + savings",
-            "motivation": "Choose healthy snacks 💪"
-        },
-        "vada": {
-            "alternative": "Idli 🥣",
-            "reason": "Vada is deep fried",
-            "benefit": "Less oil + save money",
-            "motivation": "Healthy choices matter 🌟"
-        },
-        "bonda": {
-            "alternative": "Idli 🥣",
-            "reason": "Bonda is oily",
-            "benefit": "Healthy alternative + savings",
-            "motivation": "Smart snack choices 💪"
-        },
-        "bondas": {
-            "alternative": "Idli 🥣",
-            "reason": "Bonda is oily",
-            "benefit": "Healthy alternative + savings",
-            "motivation": "Smart snack choices 💪"
-        },
-        "pakoda": {
-            "alternative": "Fruits 🍎",
-            "reason": "Pakoda is deep fried",
-            "benefit": "Healthy + save money",
-            "motivation": "Choose fruits over fried 🍎"
-        },
-        "cutlet": {
-            "alternative": "Boiled Vegetables 🥗",
-            "reason": "Cutlet is oily",
-            "benefit": "Healthy + savings",
-            "motivation": "Eat healthy, stay fit 💪"
-        },
-        "tea": {
-            "alternative": "Home-made Tea ☕",
-            "reason": "Daily outside tea adds up",
-            "benefit": "Reduce repeated expenses",
-            "motivation": "₹20/day ≈ ₹600/month 💰"
-        },
-        "chai": {
-            "alternative": "Home-made Tea ☕",
-            "reason": "Daily outside tea adds up",
-            "benefit": "Reduce repeated expenses",
-            "motivation": "₹20/day ≈ ₹600/month 💰"
-        },
-        "coffee": {
-            "alternative": "Milk/Home Coffee 🥛",
-            "reason": "Outside coffee is expensive",
-            "benefit": "Lower cost",
-            "motivation": "Save little, gain more 🚀"
-        },
-        "cafe": {
-            "alternative": "Milk/Home Coffee 🥛",
-            "reason": "Outside coffee is expensive",
-            "benefit": "Lower cost",
-            "motivation": "Save little, gain more 🚀"
-        },
-        "cool drink": {
-            "alternative": "Lemon Juice 🍋",
-            "reason": "Cool drinks are unhealthy",
-            "benefit": "Healthy + savings",
-            "motivation": "Choose natural drinks 🌿"
-        },
-        "soda": {
-            "alternative": "Lemon Juice 🍋",
-            "reason": "Soda is unhealthy",
-            "benefit": "Healthy + savings",
-            "motivation": "Natural is always better 🌿"
-        },
-        "juice": {
-            "alternative": "Home-made Juice 🥤",
-            "reason": "Outside juice costs more",
-            "benefit": "Save money + healthy",
-            "motivation": "Home juice is best 🏠"
-        },
-        "milkshake": {
-            "alternative": "Home-made Milkshake 🥛",
-            "reason": "Outside milkshake costs more",
-            "benefit": "Save money + healthy",
-            "motivation": "Make milkshake at home 🏠"
-        },
-        "parotta": {
-            "alternative": "Chapathi 🌮",
-            "reason": "Heavy oily foods affect health",
-            "benefit": "Better digestion + savings",
-            "motivation": "Healthy nights matter 🌙"
-        },
-        "paratha": {
-            "alternative": "Chapathi 🌮",
-            "reason": "Heavy oily foods affect health",
-            "benefit": "Better digestion + savings",
-            "motivation": "Healthy nights matter 🌙"
-        },
-        "shawarma": {
-            "alternative": "Chapathi Roll 🌯",
-            "reason": "Fast food costs more",
-            "benefit": "Healthy and economical",
-            "motivation": "Smart food, smart future 💪"
-        },
-        "kfc": {
-            "alternative": "Home-made Chicken 🍗",
-            "reason": "Fast food is expensive",
-            "benefit": "Same taste + less cost",
-            "motivation": "Make at home 🏠"
-        },
-        "fried chicken": {
-            "alternative": "Home-made Chicken 🍗",
-            "reason": "Fast food is expensive",
-            "benefit": "Same taste + less cost",
-            "motivation": "Make at home 🏠"
-        },
-        "mutton": {
-            "alternative": "Chicken 🍗",
-            "reason": "Mutton is expensive",
-            "benefit": "Lower cost + healthy",
-            "motivation": "Choose affordable protein 💰"
-        },
-        "movie": {
-            "alternative": "Watch OTT 📺",
-            "reason": "Theatre ticket + snacks increase spending",
-            "benefit": "Lower entertainment cost",
-            "motivation": "Enjoy more, spend less 🎬"
-        },
-        "cinema": {
-            "alternative": "Watch OTT 📺",
-            "reason": "Theatre ticket + snacks increase spending",
-            "benefit": "Lower entertainment cost",
-            "motivation": "Enjoy more, spend less 🎬"
-        },
-        "theatre": {
-            "alternative": "Watch with OTT Subscription 📺",
-            "reason": "Travel + tickets + snacks increase expense",
-            "benefit": "Entertainment at lower cost",
-            "motivation": "Entertainment + savings balance 💰"
-        },
-        "popcorn": {
-            "alternative": "Home Snacks 🍿",
-            "reason": "Theatre snacks are expensive",
-            "benefit": "Same enjoyment with lower cost",
-            "motivation": "Small snack savings become big savings 😄"
-        },
-        "gaming": {
-            "alternative": "Free Games 🎮",
-            "reason": "Paid games increase expenses",
-            "benefit": "Same fun + savings",
-            "motivation": "Free games are also fun 🎮"
-        },
-        "pub": {
-            "alternative": "Home Party 🏠",
-            "reason": "Pubs are expensive",
-            "benefit": "Save money + enjoy with friends",
-            "motivation": "Home parties are better 🎉"
-        },
-        "club": {
-            "alternative": "Home Party 🏠",
-            "reason": "Clubs are expensive",
-            "benefit": "Save money",
-            "motivation": "Home parties are more fun 🎉"
-        },
-        "netflix": {
-            "alternative": "Watch Free Content 📺",
-            "reason": "Multiple subscriptions cost more",
-            "benefit": "Save on subscriptions",
-            "motivation": "Watch content wisely 📺"
-        },
-        "amazon prime": {
-            "alternative": "Watch Free Content 📺",
-            "reason": "Multiple subscriptions cost more",
-            "benefit": "Save on subscriptions",
-            "motivation": "Watch content wisely 📺"
-        },
-        "hotstar": {
-            "alternative": "Watch Free Content 📺",
-            "reason": "Multiple subscriptions cost more",
-            "benefit": "Save on subscriptions",
-            "motivation": "Watch content wisely 📺"
-        },
-        "petrol": {
-            "alternative": "Public Transport 🚌",
-            "reason": "Fuel costs increase over time",
-            "benefit": "Reduce travel expenses",
-            "motivation": "Travel smart 🌍"
-        },
-        "diesel": {
-            "alternative": "Public Transport 🚌",
-            "reason": "Fuel costs increase over time",
-            "benefit": "Reduce travel expenses",
-            "motivation": "Travel smart 🌍"
-        },
-        "bus": {
-            "alternative": "Cycle/Shared Auto 🚲",
-            "reason": "Daily bus fare adds up",
-            "benefit": "Save on daily travel",
-            "motivation": "Cycle more, save more 🌿"
-        },
-        "auto": {
-            "alternative": "Public Bus 🚌",
-            "reason": "Auto fares are higher",
-            "benefit": "Save on travel",
-            "motivation": "Choose cheaper transport 💰"
-        },
-        "cab": {
-            "alternative": "Public Transport 🚌",
-            "reason": "Cab is expensive",
-            "benefit": "Save money on travel",
-            "motivation": "Save money, travel smart 🚌"
-        },
-        "uber": {
-            "alternative": "Public Transport 🚌",
-            "reason": "Uber is expensive",
-            "benefit": "Save money on travel",
-            "motivation": "Choose cheaper options 🚌"
-        },
-        "ola": {
-            "alternative": "Public Transport 🚌",
-            "reason": "Ola is expensive",
-            "benefit": "Save money on travel",
-            "motivation": "Choose cheaper options 🚌"
-        },
-        "rapido": {
-            "alternative": "Public Bus 🚌",
-            "reason": "Rapido is expensive for long distance",
-            "benefit": "Save money",
-            "motivation": "Use bus for longer trips 🚌"
-        },
-        "bike": {
-            "alternative": "Public Transport 🚌",
-            "reason": "Bike maintenance + fuel costs",
-            "benefit": "Reduce expenses",
-            "motivation": "Travel smart, save money 💰"
-        },
-        "car": {
-            "alternative": "Public Transport 🚌",
-            "reason": "Car maintenance + fuel + parking",
-            "benefit": "Save a lot on travel",
-            "motivation": "Public transport saves money 🌍"
-        },
-        "flight": {
-            "alternative": "Train Journey 🚂",
-            "reason": "Flights are expensive",
-            "benefit": "Save money on travel",
-            "motivation": "Train journeys are scenic and cheap 🚂"
-        },
-        "water bottle": {
-            "alternative": "Carry Water Bottle 🚰",
-            "reason": "Daily purchases increase cost",
-            "benefit": "Reduce daily expenses",
-            "motivation": "Daily savings become monthly savings 💧"
-        },
-        "mobile recharge": {
-            "alternative": "Long-term Plan 📱",
-            "reason": "Frequent recharges cost more",
-            "benefit": "Better value",
-            "motivation": "Spend once and save more 💡"
-        },
-        "phone recharge": {
-            "alternative": "Long-term Plan 📱",
-            "reason": "Frequent recharges cost more",
-            "benefit": "Better value",
-            "motivation": "Spend once and save more 💡"
-        },
-        "electricity": {
-            "alternative": "Use Energy Efficient Devices 💡",
-            "reason": "High electricity bills",
-            "benefit": "Reduce monthly bills",
-            "motivation": "Save power, save money 💡"
-        },
-        "water": {
-            "alternative": "Use Water Wisely 💧",
-            "reason": "Wasting water increases bills",
-            "benefit": "Reduce water bills",
-            "motivation": "Save water, save money 💧"
-        },
-        "gas": {
-            "alternative": "Use Induction Cooktop 🔥",
-            "reason": "Gas prices increase",
-            "benefit": "Save on fuel",
-            "motivation": "Use efficient cooking 🔥"
-        },
-        "cylinders": {
-            "alternative": "Use Induction Cooktop 🔥",
-            "reason": "Gas cylinder prices increase",
-            "benefit": "Save money",
-            "motivation": "Use efficient cooking 🔥"
-        },
-        "oil": {
-            "alternative": "Buy in Bulk 🛒",
-            "reason": "Small packets cost more",
-            "benefit": "Save money",
-            "motivation": "Bulk buying saves money 💰"
-        },
-        "rice": {
-            "alternative": "Buy in Bulk 🛒",
-            "reason": "Small packets cost more",
-            "benefit": "Save money",
-            "motivation": "Bulk buying saves money 💰"
-        },
-        "wheat": {
-            "alternative": "Buy in Bulk 🛒",
-            "reason": "Small packets cost more",
-            "benefit": "Save money",
-            "motivation": "Bulk buying saves money 💰"
-        },
-        "sugar": {
-            "alternative": "Buy in Bulk 🛒",
-            "reason": "Small packets cost more",
-            "benefit": "Save money",
-            "motivation": "Bulk buying saves money 💰"
-        },
-        "flour": {
-            "alternative": "Buy in Bulk 🛒",
-            "reason": "Small packets cost more",
-            "benefit": "Save money",
-            "motivation": "Bulk buying saves money 💰"
-        },
-        "dal": {
-            "alternative": "Buy in Bulk 🛒",
-            "reason": "Small packets cost more",
-            "benefit": "Save money",
-            "motivation": "Bulk buying saves money 💰"
-        },
-        "clothes": {
-            "alternative": "Season Sale Shopping 👕",
-            "reason": "Regular prices are high",
-            "benefit": "Save on shopping",
-            "motivation": "Sale shopping saves money 🛍"
-        },
-        "shirt": {
-            "alternative": "Season Sale Shopping 👕",
-            "reason": "Regular prices are high",
-            "benefit": "Save on shopping",
-            "motivation": "Sale shopping saves money 🛍"
-        },
-        "pants": {
-            "alternative": "Season Sale Shopping 👖",
-            "reason": "Regular prices are high",
-            "benefit": "Save on shopping",
-            "motivation": "Sale shopping saves money 🛍"
-        },
-        "shoes": {
-            "alternative": "Season Sale Shopping 👟",
-            "reason": "Regular prices are high",
-            "benefit": "Save on shopping",
-            "motivation": "Sale shopping saves money 🛍"
-        },
-        "jeans": {
-            "alternative": "Season Sale Shopping 👖",
-            "reason": "Regular prices are high",
-            "benefit": "Save on shopping",
-            "motivation": "Sale shopping saves money 🛍"
-        },
-        "t-shirt": {
-            "alternative": "Season Sale Shopping 👕",
-            "reason": "Regular prices are high",
-            "benefit": "Save on shopping",
-            "motivation": "Sale shopping saves money 🛍"
-        },
-        "mobile": {
-            "alternative": "Buy During Sale 📱",
-            "reason": "Regular prices are higher",
-            "benefit": "Save money on electronics",
-            "motivation": "Wait for sale to save 💰"
-        },
-        "laptop": {
-            "alternative": "Buy During Sale 💻",
-            "reason": "Regular prices are higher",
-            "benefit": "Save money on electronics",
-            "motivation": "Wait for sale to save 💰"
-        },
-        "tv": {
-            "alternative": "Buy During Sale 📺",
-            "reason": "Regular prices are higher",
-            "benefit": "Save money on electronics",
-            "motivation": "Wait for sale to save 💰"
-        },
-        "earphones": {
-            "alternative": "Buy During Sale 🎧",
-            "reason": "Regular prices are higher",
-            "benefit": "Save money",
-            "motivation": "Wait for sale to save 💰"
-        },
-        "headphones": {
-            "alternative": "Buy During Sale 🎧",
-            "reason": "Regular prices are higher",
-            "benefit": "Save money",
-            "motivation": "Wait for sale to save 💰"
-        },
-        "medicine": {
-            "alternative": "Generic Medicine 💊",
-            "reason": "Branded medicines cost more",
-            "benefit": "Same effect + savings",
-            "motivation": "Generic medicines are equally effective 💊"
-        },
-        "tablet": {
-            "alternative": "Generic Medicine 💊",
-            "reason": "Branded medicines cost more",
-            "benefit": "Same effect + savings",
-            "motivation": "Generic medicines are equally effective 💊"
-        },
-        "doctor": {
-            "alternative": "Government Hospital 🏥",
-            "reason": "Private doctors are expensive",
-            "benefit": "Save on medical bills",
-            "motivation": "Government hospitals are affordable 🏥"
-        },
-        "salon": {
-            "alternative": "Home Grooming 💇",
-            "reason": "Salon visits are expensive",
-            "benefit": "Save money",
-            "motivation": "Learn home grooming 💇"
-        },
-        "haircut": {
-            "alternative": "Local Barber 💇",
-            "reason": "Premium salons cost more",
-            "benefit": "Save money",
-            "motivation": "Local barbers are cheaper 💇"
-        },
-        "makeup": {
-            "alternative": "Home Makeup 💄",
-            "reason": "Professional makeup costs more",
-            "benefit": "Save money",
-            "motivation": "Learn home makeup 💄"
-        },
-        "books": {
-            "alternative": "Library Books 📚",
-            "reason": "New books are expensive",
-            "benefit": "Save money on books",
-            "motivation": "Libraries are treasure 🏛"
-        },
-        "courses": {
-            "alternative": "Free Online Courses 📖",
-            "reason": "Paid courses are expensive",
-            "benefit": "Same knowledge + free",
-            "motivation": "Learn for free 🎓"
-        },
-        "tution": {
-            "alternative": "Online Learning 📖",
-            "reason": "Tuition fees are high",
-            "benefit": "Save money on education",
-            "motivation": "Learn online for free 🎓"
-        },
-        "gym": {
-            "alternative": "Home Workout 💪",
-            "reason": "Gym membership is expensive",
-            "benefit": "Save money + flexible timing",
-            "motivation": "Home workout is also effective 💪"
-        },
-        "protein": {
-            "alternative": "Natural Protein 🥗",
-            "reason": "Protein powders are expensive",
-            "benefit": "Save money + natural",
-            "motivation": "Natural food is best 🥗"
-        },
-        "hotel": {
-            "alternative": "Hostel/Home Stay 🏠",
-            "reason": "Hotels are expensive",
-            "benefit": "Save on accommodation",
-            "motivation": "Budget stays are good 🏠"
-        },
-        "tour": {
-            "alternative": "Budget Travel 🎒",
-            "reason": "Luxury tours are expensive",
-            "benefit": "Save money",
-            "motivation": "Budget travel is fun 🎒"
-        },
-        "foreign trip": {
-            "alternative": "Domestic Trip 🇮🇳",
-            "reason": "Foreign trips are expensive",
-            "benefit": "Save money + explore India",
-            "motivation": "India has many beautiful places 🇮🇳"
-        }
+        "idli": {"alternative": "Home-made Idli 🥣", "reason": "Home food usually costs less", "benefit": "Healthy breakfast + lower spending", "motivation": "Healthy mornings create healthy savings 🌞"},
+        "dosai": {"alternative": "Idli 🥣", "reason": "Less oil and lower cost", "benefit": "Healthy and saves money", "motivation": "Small savings create big results 💪"},
+        "dosa": {"alternative": "Idli 🥣", "reason": "Less oil and lower cost", "benefit": "Healthy and saves money", "motivation": "Small savings create big results 💪"},
+        "poori": {"alternative": "Chapathi 🌮", "reason": "Poori contains more oil", "benefit": "Healthier option", "motivation": "Choose smart food choices 🏃"},
+        "puri": {"alternative": "Chapathi 🌮", "reason": "Poori contains more oil", "benefit": "Healthier option", "motivation": "Choose smart food choices 🏃"},
+        "pongal": {"alternative": "Ragi Porridge 🌾", "reason": "Nutritious and economical", "benefit": "Energy + savings", "motivation": "Healthy body, healthy wallet ✨"},
+        "uppuma": {"alternative": "Oats Porridge 🥣", "reason": "Uppuma contains more oil", "benefit": "Better nutrition + savings", "motivation": "Healthy food, healthy life 💪"},
+        "upma": {"alternative": "Oats Porridge 🥣", "reason": "Upma contains more oil", "benefit": "Better nutrition + savings", "motivation": "Healthy food, healthy life 💪"},
+        "chapathi": {"alternative": "Home-made Chapathi 🌮", "reason": "Outside chapathi costs more", "benefit": "Save money + healthy food", "motivation": "Home food is always best 🏠"},
+        "chapati": {"alternative": "Home-made Chapathi 🌮", "reason": "Outside chapathi costs more", "benefit": "Save money + healthy food", "motivation": "Home food is always best 🏠"},
+        "briyani": {"alternative": "Meals 🍛", "reason": "Briyani often costs more", "benefit": "Balanced food + save money", "motivation": "Reduce cost without losing satisfaction 😄"},
+        "biryani": {"alternative": "Meals 🍛", "reason": "Briyani often costs more", "benefit": "Balanced food + save money", "motivation": "Reduce cost without losing satisfaction 😄"},
+        "fried rice": {"alternative": "Lemon Rice 🍋", "reason": "Simple foods cost less", "benefit": "Save money + lighter food", "motivation": "Simple habits grow savings 💰"},
+        "noodles": {"alternative": "Veg Pasta 🍝", "reason": "Noodles are processed food", "benefit": "Healthy alternative + savings", "motivation": "Eat healthy, save money 🌟"},
+        "meals": {"alternative": "Mini Meals 🍽", "reason": "Large meals increase spending", "benefit": "Reduce unnecessary expense", "motivation": "Spend wisely 🎯"},
+        "thali": {"alternative": "Mini Meals 🍽", "reason": "Large thali costs more", "benefit": "Save money + less food waste", "motivation": "Eat less, save more 💰"},
+        "pizza": {"alternative": "Home-made Pizza 🍕", "reason": "Outside pizza costs more", "benefit": "Same taste + less cost", "motivation": "Make pizza at home 🏠"},
+        "burger": {"alternative": "Sandwich 🥪", "reason": "Fast food is expensive", "benefit": "Healthy + savings", "motivation": "Homemade is always better 🏠"},
+        "chips": {"alternative": "Fruits 🍎", "reason": "Chips are processed snacks", "benefit": "Better nutrition + savings", "motivation": "Healthy snacks, healthy life 🌟"},
+        "tea": {"alternative": "Home-made Tea ☕", "reason": "Daily outside tea adds up", "benefit": "Reduce repeated expenses", "motivation": "₹20/day ≈ ₹600/month 💰"},
+        "coffee": {"alternative": "Milk/Home Coffee 🥛", "reason": "Outside coffee is expensive", "benefit": "Lower cost", "motivation": "Save little, gain more 🚀"},
+        "petrol": {"alternative": "Public Transport 🚌", "reason": "Fuel costs increase over time", "benefit": "Reduce travel expenses", "motivation": "Travel smart 🌍"},
+        "bike": {"alternative": "Public Transport 🚌", "reason": "Bike maintenance + fuel costs", "benefit": "Reduce expenses", "motivation": "Travel smart, save money 💰"},
+        "car": {"alternative": "Public Transport 🚌", "reason": "Car maintenance + fuel + parking", "benefit": "Save a lot on travel", "motivation": "Public transport saves money 🌍"},
+        "movie": {"alternative": "Watch OTT 📺", "reason": "Theatre ticket + snacks increase spending", "benefit": "Lower entertainment cost", "motivation": "Enjoy more, spend less 🎬"},
+        "netflix": {"alternative": "Watch Free Content 📺", "reason": "Multiple subscriptions cost more", "benefit": "Save on subscriptions", "motivation": "Watch content wisely 📺"},
+        "amazon prime": {"alternative": "Watch Free Content 📺", "reason": "Multiple subscriptions cost more", "benefit": "Save on subscriptions", "motivation": "Watch content wisely 📺"},
+        "electricity": {"alternative": "Use Energy Efficient Devices 💡", "reason": "High electricity bills", "benefit": "Reduce monthly bills", "motivation": "Save power, save money 💡"},
+        "medicine": {"alternative": "Generic Medicine 💊", "reason": "Branded medicines cost more", "benefit": "Same effect + savings", "motivation": "Generic medicines are equally effective 💊"},
+        "clothes": {"alternative": "Season Sale Shopping 👕", "reason": "Regular prices are high", "benefit": "Save on shopping", "motivation": "Sale shopping saves money 🛍"},
+        "gym": {"alternative": "Home Workout 💪", "reason": "Gym membership is expensive", "benefit": "Save money + flexible timing", "motivation": "Home workout is also effective 💪"}
     }
     
     # ================= GENERATE SMART SUGGESTIONS =================
@@ -1075,9 +565,8 @@ def home():
     if not suggestions:
         suggestions.append("✅ Spending looks balanced. Keep saving! 💪")
     
-    # ================= CHARTS (FIXED - DYNAMIC) =================
+    # ================= CHARTS =================
     try:
-        # 1. Income vs Expense Pie Chart
         plt.figure()
         if income > 0 or expense > 0:
             plt.pie([income if income > 0 else 1, expense if expense > 0 else 1], 
@@ -1087,7 +576,6 @@ def home():
         plt.savefig("static/chart.png")
         plt.close()
         
-        # 2. Monthly Expense Bar Chart
         plt.figure(figsize=(8,5))
         if monthly_data:
             months = sorted(monthly_data.keys())
@@ -1101,20 +589,11 @@ def home():
         plt.savefig("static/monthly_chart.png", bbox_inches='tight')
         plt.close()
         
-        # 3. Category Analytics Pie Chart (FIXED - Dynamic Categories)
         plt.figure(figsize=(6,6))
         if category_data:
-            # Dynamically create labels and values from actual data
-            labels = list(category_data.keys())
-            values = list(category_data.values())
-            
-            # Only show categories with values > 0
             filtered_data = {k: v for k, v in category_data.items() if v > 0}
-            
             if filtered_data:
-                plt.pie(filtered_data.values(), 
-                        labels=filtered_data.keys(), 
-                        autopct="%1.1f%%")
+                plt.pie(filtered_data.values(), labels=filtered_data.keys(), autopct="%1.1f%%")
                 plt.title("Category Analytics")
             else:
                 plt.text(0.5, 0.5, "No Expense Data", ha="center", va="center", fontsize=14)
@@ -1151,7 +630,8 @@ def home():
         prediction_status=prediction_status,
         prediction_msg=prediction_msg,
         saving_goal=saving_goal,
-        category_data=category_data
+        category_data=category_data,
+        email_status=email_status
     )
 
 # ================= DEBUG DATABASE ROUTE =================
@@ -1163,11 +643,9 @@ def debug_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Get all transactions for the user
     cursor.execute("SELECT * FROM transactions WHERE username=?", (session['user'],))
     transactions = cursor.fetchall()
     
-    # Get user info
     cursor.execute("SELECT id, username, email FROM users")
     users = cursor.fetchall()
     conn.close()
