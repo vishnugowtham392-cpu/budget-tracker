@@ -15,6 +15,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
+import json
 
 # ================= LOGGING =================
 logging.basicConfig(level=logging.DEBUG)
@@ -28,8 +29,8 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'vishnugowtham392@gmail.com'  # REPLACE WITH YOUR GMAIL
-app.config['MAIL_PASSWORD'] = 'brdxtgyqobiwjeel'  # REPLACE WITH APP PASSWORD
+app.config['MAIL_USERNAME'] = 'vishnugowtham392@gmail.com'
+app.config['MAIL_PASSWORD'] = 'brdxtgyqobiwjeel'
 app.config['MAIL_DEFAULT_SENDER'] = 'vishnugowtham392@gmail.com'
 app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
@@ -37,11 +38,25 @@ mail = Mail(app)
 
 # ================= DATABASE CONNECTION =================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE_PATH = os.path.join(BASE_DIR, "database", "budget.db")
+
+# Use /tmp directory for database on Render (persistent during session)
+# For local development, use local directory
+if os.environ.get('RENDER'):
+    # On Render, use /tmp which is writable
+    DATABASE_DIR = "/tmp"
+    print("🔧 Running on Render - using /tmp for database")
+else:
+    # Local development
+    DATABASE_DIR = os.path.join(BASE_DIR, "database")
+    os.makedirs(DATABASE_DIR, exist_ok=True)
+    print("🔧 Running locally - using ./database for storage")
+
+DATABASE_PATH = os.path.join(DATABASE_DIR, "budget.db")
 
 def get_db_connection():
     try:
-        os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
         conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
         return conn
@@ -54,7 +69,7 @@ def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # STEP 2 - Modified Users Table with email field
+        # Modified Users Table with email field
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,20 +95,38 @@ def init_db():
         
         conn.commit()
         conn.close()
-        print("✅ Database initialized successfully!")
+        print(f"✅ Database initialized successfully at: {DATABASE_PATH}")
+        
+        # Verify database is writable
+        test_conn = sqlite3.connect(DATABASE_PATH)
+        test_conn.close()
+        print("✅ Database is writable")
+        
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         raise
 
 # ================= FOLDERS =================
-os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
-os.makedirs(os.path.join(BASE_DIR, "static"), exist_ok=True)
-os.makedirs(os.path.join(BASE_DIR, "uploads"), exist_ok=True)
-os.makedirs(os.path.join(BASE_DIR, "static", "profiles"), exist_ok=True)
-os.makedirs(os.path.join(BASE_DIR, "static", "uploads"), exist_ok=True)
+# Use /tmp for static files on Render
+if os.environ.get('RENDER'):
+    STATIC_FOLDER = "/tmp/static"
+    UPLOAD_FOLDER = "/tmp/uploads"
+    PROFILES_FOLDER = "/tmp/profiles"
+else:
+    STATIC_FOLDER = os.path.join(BASE_DIR, "static")
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
+    PROFILES_FOLDER = os.path.join(BASE_DIR, "static", "profiles")
 
-app.config['UPLOAD_FOLDER'] = "static/uploads"
+# Create all necessary directories
+for folder in [STATIC_FOLDER, UPLOAD_FOLDER, PROFILES_FOLDER]:
+    os.makedirs(folder, exist_ok=True)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Set global variables
 budget_limit = 5000
+
+# Initialize database
 init_db()
 
 # ================= HEALTH CHECK =================
@@ -182,7 +215,6 @@ def test_email():
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == "POST":
-        # STEP 3 - Modified Signup to include email
         username = request.form['username'].strip()
         email = request.form['email'].strip()
         password = request.form['password'].strip()
@@ -203,7 +235,6 @@ def signup():
                 conn.close()
                 return render_template("signup.html")
             
-            # STEP 3 - Insert with email
             cursor.execute("""
                 INSERT INTO users (username, email, password)
                 VALUES (?, ?, ?)
@@ -294,7 +325,7 @@ def profile():
         
         if photo and photo.filename != "":
             filename = secure_filename(photo.filename)
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            photo.save(os.path.join(UPLOAD_FOLDER, filename))
             
             cur.execute("""
                 UPDATE users
@@ -338,7 +369,7 @@ def upload():
         return "No file selected"
     
     filename = secure_filename(file.filename)
-    path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(path)
     
     conn = get_db_connection()
@@ -455,7 +486,6 @@ def home():
         print(f"📧 User Email: {user_email}")
         print("=" * 60)
         
-        # STEP 4 - Send email using user's email from database
         if user_email:
             success, message = send_warning_email(user_email, username, expense, budget_limit)
             if success:
@@ -555,13 +585,18 @@ def home():
         suggestions.append("✅ Spending looks balanced. Keep saving! 💪")
     
     try:
+        # Use absolute paths for charts
+        chart_path = os.path.join(STATIC_FOLDER, "chart.png")
+        monthly_chart_path = os.path.join(STATIC_FOLDER, "monthly_chart.png")
+        category_chart_path = os.path.join(STATIC_FOLDER, "category_chart.png")
+        
         plt.figure()
         if income > 0 or expense > 0:
             plt.pie([income if income > 0 else 1, expense if expense > 0 else 1], 
                     labels=["Income", "Expense"], autopct="%1.1f%%")
         else:
             plt.text(0.5, 0.5, "No Data Available", ha="center", va="center", fontsize=14)
-        plt.savefig("static/chart.png")
+        plt.savefig(chart_path)
         plt.close()
         
         plt.figure(figsize=(8,5))
@@ -574,7 +609,7 @@ def home():
         else:
             plt.text(0.5, 0.5, "No Monthly Data", ha="center", va="center", fontsize=14)
         plt.tight_layout()
-        plt.savefig("static/monthly_chart.png", bbox_inches='tight')
+        plt.savefig(monthly_chart_path, bbox_inches='tight')
         plt.close()
         
         plt.figure(figsize=(6,6))
@@ -587,7 +622,7 @@ def home():
                 plt.text(0.5, 0.5, "No Expense Data", ha="center", va="center", fontsize=14)
         else:
             plt.text(0.5, 0.5, "No Category Data", ha="center", va="center", fontsize=14)
-        plt.savefig("static/category_chart.png")
+        plt.savefig(category_chart_path)
         plt.close()
         
     except Exception as e:
@@ -755,7 +790,7 @@ def pdf():
     data = cursor.fetchall()
     conn.close()
     
-    file = "static/report.pdf"
+    file = os.path.join(STATIC_FOLDER, "report.pdf")
     doc = SimpleDocTemplate(file, pagesize=A4)
     styles = getSampleStyleSheet()
     content = []
@@ -781,7 +816,7 @@ def pdf():
         content.append(Spacer(1, 5))
     
     doc.build(content)
-    return redirect("/static/report.pdf")
+    return redirect(f"/static/report.pdf")
 
 # ================= CSV DOWNLOAD =================
 @app.route('/download')
@@ -812,6 +847,13 @@ def delete(id):
     conn.commit()
     conn.close()
     return redirect('/')
+
+# ================= SERVE STATIC FILES =================
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(STATIC_FOLDER, filename)
+
+from flask import send_from_directory
 
 # ================= RUN =================
 if __name__ == "__main__":
