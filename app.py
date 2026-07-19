@@ -37,16 +37,17 @@ app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
 mail = Mail(app)
 
-# ================= DATABASE & FILE PATHS FOR RENDER =================
+# ================= DATABASE & FILE PATHS =================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# --- Use /tmp on Render, local folder otherwise ---
+# --- Use LOCAL PATH for development, /tmp for Render ---
 if os.environ.get('RENDER'):
     print("🔧 Running on Render - using /tmp for storage")
     DATA_DIR = "/tmp"
 else:
-    print("🔧 Running locally - using local ./storage")
-    DATA_DIR = os.path.join(BASE_DIR, "storage")
+    print("🔧 Running locally - using E:\Budget Tracker\database")
+    # Your specified local path
+    DATA_DIR = r"E:\Budget Tracker\database"
     os.makedirs(DATA_DIR, exist_ok=True)
 
 # Define all paths using DATA_DIR
@@ -127,124 +128,6 @@ def handle_exception(e):
     print(f"❌ Error: {error_msg}")
     print(traceback.format_exc())
     return f"Error: {error_msg}", 500
-
-# ================= VIEW DATABASE ROUTE =================
-@app.route('/view-db')
-def view_db():
-    """View database contents in browser"""
-    if 'user' not in session:
-        return redirect('/login')
-    
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Get all tables
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = cursor.fetchall()
-        
-        html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Database Viewer</title>
-            <style>
-                body { font-family: Arial; padding: 20px; background: #f4f6f9; }
-                .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 10px lightgray; }
-                h1 { color: #28a745; }
-                .table-container { overflow-x: auto; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-                th { background: #28a745; color: white; }
-                tr:hover { background-color: #f5f5f5; }
-                .back { display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
-                .back:hover { background: #218838; }
-                .db-info { background: #e8f5e9; padding: 10px; border-radius: 5px; margin: 10px 0; }
-                .count { font-weight: bold; color: #28a745; }
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <h1>🗄️ Database Viewer</h1>
-                <a href="/" class="back">⬅ Back to Dashboard</a>
-                <div class="db-info">
-                    <strong>Database Path:</strong> """ + DATABASE_PATH + """<br>
-                    <strong>Database Size:</strong> """ + str(os.path.getsize(DATABASE_PATH) if os.path.exists(DATABASE_PATH) else 0) + """ bytes
-                </div>
-            </div>
-        """
-        
-        for table in tables:
-            table_name = table[0]
-            cursor.execute(f"SELECT * FROM {table_name}")
-            rows = cursor.fetchall()
-            
-            # Get column names
-            cursor.execute(f"PRAGMA table_info({table_name})")
-            columns = [col[1] for col in cursor.fetchall()]
-            
-            html += f"""
-            <div class="card">
-                <h2>📋 Table: {table_name}</h2>
-                <p>Total Records: <span class="count">{len(rows)}</span></p>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-            """
-            
-            for col in columns:
-                html += f"<th>{col}</th>"
-            
-            html += """
-                            </tr>
-                        </thead>
-                        <tbody>
-            """
-            
-            for row in rows:
-                html += "<tr>"
-                for i in range(len(columns)):
-                    html += f"<td>{row[i] if row[i] is not None else 'NULL'}</td>"
-                html += "</tr>"
-            
-            html += """
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            """
-        
-        html += """
-        </body>
-        </html>
-        """
-        
-        conn.close()
-        return html
-        
-    except Exception as e:
-        return f"Error viewing database: {str(e)}"
-
-# ================= DOWNLOAD DATABASE =================
-@app.route('/download-db')
-def download_db():
-    """Download the database file"""
-    if 'user' not in session:
-        return redirect('/login')
-    
-    try:
-        if os.path.exists(DATABASE_PATH):
-            return send_from_directory(
-                os.path.dirname(DATABASE_PATH),
-                os.path.basename(DATABASE_PATH),
-                as_attachment=True,
-                download_name='budget.db'
-            )
-        else:
-            return "Database file not found!", 404
-    except Exception as e:
-        return f"Error downloading database: {str(e)}", 500
 
 # ================= EMAIL WARNING FUNCTION =================
 def send_warning_email(email, username, expense, budget_limit):
@@ -761,63 +644,58 @@ def home():
         email_status=email_status
     )
 
-# ================= DEBUG DATABASE ROUTE =================
+# ================= SECURE DEBUG ROUTE (LOGIN REQUIRED) =================
 @app.route('/debug/db')
 def debug_db():
     if 'user' not in session:
         return redirect('/login')
     
+    username = session['user']
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM transactions WHERE username=?", (session['user'],))
+    # Show only current user's transactions
+    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     transactions = cursor.fetchall()
     
-    cursor.execute("SELECT id, username, email FROM users")
-    users = cursor.fetchall()
+    cursor.execute("SELECT id, username, email FROM users WHERE username=?", (username,))
+    user = cursor.fetchone()
     conn.close()
     
-    html = """
+    html = f"""
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Database Debug</title>
+        <title>My Data</title>
         <style>
-            body { font-family: Arial; padding: 20px; background: #f4f6f9; }
-            .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 10px lightgray; }
-            h1 { color: #28a745; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
-            th { background: #28a745; color: white; }
-            .back { display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; }
-            .back:hover { background: #218838; }
+            body {{ font-family: Arial; padding: 20px; background: #f4f6f9; }}
+            .card {{ background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 10px lightgray; }}
+            h1 {{ color: #28a745; }}
+            table {{ width: 100%; border-collapse: collapse; }}
+            th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }}
+            th {{ background: #28a745; color: white; }}
+            .back {{ display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; }}
+            .back:hover {{ background: #218838; }}
+            .warning {{ background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; }}
         </style>
     </head>
     <body>
         <div class="card">
-            <h1>📊 Database Debug</h1>
+            <h1>🔒 My Data</h1>
             <a href="/" class="back">⬅ Back to Dashboard</a>
-            <a href="/view-db" class="back" style="background:#17a2b8;">🗄️ View Full Database</a>
-            <a href="/download-db" class="back" style="background:#ff9800;">⬇️ Download Database</a>
+            <div class="warning">
+                ⚠️ This page shows only your data. Access is restricted to logged-in users.
+            </div>
         </div>
         
         <div class="card">
-            <h2>👤 Users</h2>
-            <p>Total Users: <b>""" + str(len(users)) + """</b></p>
-            <table>
-                <tr><th>ID</th><th>Username</th><th>Email</th></tr>
-    """
-    
-    for u in users:
-        html += f"<tr><td>{u[0]}</td><td>{u[1]}</td><td>{u[2]}</td></tr>"
-    
-    html += """
-            </table>
+            <h2>👤 My Profile</h2>
+            <p><strong>Username:</strong> {user[1] if user else 'N/A'}</p>
+            <p><strong>Email:</strong> {user[2] if user else 'N/A'}</p>
         </div>
         
         <div class="card">
-            <h2>📋 Transactions</h2>
-            <p>Total Transactions: <b>""" + str(len(transactions)) + """</b></p>
+            <h2>📋 My Transactions ({len(transactions)})</h2>
             <table>
                 <tr><th>ID</th><th>Title</th><th>Amount</th><th>Type</th><th>Category</th><th>Item</th><th>Date</th></tr>
     """
