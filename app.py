@@ -1,5 +1,5 @@
 # ================= UPDATED IMPORTS =================
-from flask import Flask, render_template, request, redirect, Response, session, jsonify, flash
+from flask import Flask, render_template, request, redirect, Response, session, jsonify, flash, send_from_directory
 import sqlite3
 import os
 import csv
@@ -30,33 +30,39 @@ app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_USERNAME'] = 'vishnugowtham392@gmail.com'
-app.config['MAIL_PASSWORD'] = 'brdxtgyqobiwjeel'
+app.config['MAIL_PASSWORD'] = 'brdxtgyqobiwjeel'  # Replace with your App Password
 app.config['MAIL_DEFAULT_SENDER'] = 'vishnugowtham392@gmail.com'
 app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
 mail = Mail(app)
 
-# ================= DATABASE CONNECTION =================
+# ================= DATABASE & FILE PATHS FOR RENDER =================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Use /tmp directory for database on Render (persistent during session)
-# For local development, use local directory
+# --- Use /tmp on Render, local folder otherwise ---
 if os.environ.get('RENDER'):
-    # On Render, use /tmp which is writable
-    DATABASE_DIR = "/tmp"
-    print("🔧 Running on Render - using /tmp for database")
+    print("🔧 Running on Render - using /tmp for storage")
+    DATA_DIR = "/tmp"
 else:
-    # Local development
-    DATABASE_DIR = os.path.join(BASE_DIR, "database")
-    os.makedirs(DATABASE_DIR, exist_ok=True)
-    print("🔧 Running locally - using ./database for storage")
+    print("🔧 Running locally - using local ./storage")
+    DATA_DIR = os.path.join(BASE_DIR, "storage")
+    os.makedirs(DATA_DIR, exist_ok=True)
 
-DATABASE_PATH = os.path.join(DATABASE_DIR, "budget.db")
+# Define all paths using DATA_DIR
+DATABASE_PATH = os.path.join(DATA_DIR, "budget.db")
+STATIC_DIR = os.path.join(DATA_DIR, "static")
+UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
 
+# Create all necessary directories
+for folder in [STATIC_DIR, UPLOAD_DIR, PROFILES_DIR]:
+    os.makedirs(folder, exist_ok=True)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_DIR
+
+# ================= DATABASE FUNCTIONS =================
 def get_db_connection():
     try:
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
         conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
         return conn
@@ -68,8 +74,6 @@ def init_db():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Modified Users Table with email field
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +83,6 @@ def init_db():
                 photo TEXT DEFAULT 'default.png'
             )
         """)
-        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,49 +95,24 @@ def init_db():
                 date TEXT
             )
         """)
-        
         conn.commit()
         conn.close()
         print(f"✅ Database initialized successfully at: {DATABASE_PATH}")
-        
-        # Verify database is writable
-        test_conn = sqlite3.connect(DATABASE_PATH)
-        test_conn.close()
-        print("✅ Database is writable")
-        
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         raise
 
-# ================= FOLDERS =================
-# Use /tmp for static files on Render
-if os.environ.get('RENDER'):
-    STATIC_FOLDER = "/tmp/static"
-    UPLOAD_FOLDER = "/tmp/uploads"
-    PROFILES_FOLDER = "/tmp/profiles"
-else:
-    STATIC_FOLDER = os.path.join(BASE_DIR, "static")
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
-    PROFILES_FOLDER = os.path.join(BASE_DIR, "static", "profiles")
-
-# Create all necessary directories
-for folder in [STATIC_FOLDER, UPLOAD_FOLDER, PROFILES_FOLDER]:
-    os.makedirs(folder, exist_ok=True)
-
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Set global variables
-budget_limit = 5000
-
-# Initialize database
+# Initialize the database
 init_db()
 
-# ================= HEALTH CHECK =================
+# ================= GLOBAL VARIABLE =================
+budget_limit = 5000
+
+# ================= ROUTES =================
 @app.route('/health')
 def health():
     return "OK", 200
 
-# ================= ERROR HANDLING =================
 @app.errorhandler(Exception)
 def handle_exception(e):
     error_msg = str(e)
@@ -162,7 +140,6 @@ def send_warning_email(email, username, expense, budget_limit):
             sender=app.config['MAIL_USERNAME'],
             recipients=[email]
         )
-        
         msg.body = f"""
 Hello {username},
 
@@ -186,12 +163,10 @@ Stay on track! 💰
 
 - Budget Analysis System
         """
-        
         print("📧 Sending email to:", email)
         mail.send(msg)
         print("✅ Email sent successfully to:", email)
         return True, f"Email sent to {email}"
-        
     except Exception as e:
         print("❌ Mail Error:", str(e))
         return False, str(e)
@@ -226,7 +201,6 @@ def signup():
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            
             cursor.execute("SELECT username FROM users WHERE username=?", (username,))
             existing_user = cursor.fetchone()
             
@@ -235,17 +209,12 @@ def signup():
                 conn.close()
                 return render_template("signup.html")
             
-            cursor.execute("""
-                INSERT INTO users (username, email, password)
-                VALUES (?, ?, ?)
-            """, (username, email, password))
-            
+            cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)", (username, email, password))
             conn.commit()
             conn.close()
             
             flash("✅ Account created successfully! Please login.")
             return redirect('/login')
-            
         except Exception as e:
             print(f"Signup error: {e}")
             flash(f"Error: {str(e)}")
@@ -272,7 +241,7 @@ def login():
                 conn.close()
                 
                 if user:
-                    if user[3] == password:  # password is now at index 3
+                    if user[3] == password:  # password is at index 3
                         session['user'] = username
                         return redirect('/')
                     else:
@@ -325,24 +294,10 @@ def profile():
         
         if photo and photo.filename != "":
             filename = secure_filename(photo.filename)
-            photo.save(os.path.join(UPLOAD_FOLDER, filename))
-            
-            cur.execute("""
-                UPDATE users
-                SET username=?,
-                    email=?,
-                    password=?,
-                    photo=?
-                WHERE username=?
-            """, (new_username, email, password, filename, username))
+            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            cur.execute("UPDATE users SET username=?, email=?, password=?, photo=? WHERE username=?", (new_username, email, password, filename, username))
         else:
-            cur.execute("""
-                UPDATE users
-                SET username=?,
-                    email=?,
-                    password=?
-                WHERE username=?
-            """, (new_username, email, password, username))
+            cur.execute("UPDATE users SET username=?, email=?, password=? WHERE username=?", (new_username, email, password, username))
         
         conn.commit()
         session['user'] = new_username
@@ -369,7 +324,7 @@ def upload():
         return "No file selected"
     
     filename = secure_filename(file.filename)
-    path = os.path.join(UPLOAD_FOLDER, filename)
+    path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(path)
     
     conn = get_db_connection()
@@ -394,11 +349,7 @@ def upload():
             item = row[4]
             date = row[5]
             
-            cursor.execute("""
-                INSERT INTO transactions
-                (username,title,amount,type,category,item,date)
-                VALUES(?,?,?,?,?,?,?)
-            """, (session['user'], title, amount, t_type, category, item, date))
+            cursor.execute("INSERT INTO transactions (username,title,amount,type,category,item,date) VALUES(?,?,?,?,?,?,?)", (session['user'], title, amount, t_type, category, item, date))
     
     conn.commit()
     conn.close()
@@ -439,10 +390,7 @@ def home():
         
         date = request.form['date']
         
-        cursor.execute("""
-            INSERT INTO transactions (username,title,amount,type,category,item,date)
-            VALUES(?,?,?,?,?,?,?)
-        """, (username, title, amount, ttype, category, item, date))
+        cursor.execute("INSERT INTO transactions (username,title,amount,type,category,item,date) VALUES(?,?,?,?,?,?,?)", (username, title, amount, ttype, category, item, date))
         conn.commit()
     
     cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
@@ -477,7 +425,6 @@ def home():
     
     if expense > budget_limit:
         warning = "⚠️ Budget Exceeded!"
-        
         print("=" * 60)
         print("🚨 BUDGET EXCEEDED!")
         print(f"👤 User: {username}")
@@ -584,49 +531,76 @@ def home():
     if not suggestions:
         suggestions.append("✅ Spending looks balanced. Keep saving! 💪")
     
+    # ================= CHART GENERATION =================
     try:
-        # Use absolute paths for charts
-        chart_path = os.path.join(STATIC_FOLDER, "chart.png")
-        monthly_chart_path = os.path.join(STATIC_FOLDER, "monthly_chart.png")
-        category_chart_path = os.path.join(STATIC_FOLDER, "category_chart.png")
-        
-        plt.figure()
+        # Income vs Expense Pie Chart
+        chart_path = os.path.join(STATIC_DIR, "chart.png")
+        plt.figure(figsize=(8, 6))
         if income > 0 or expense > 0:
             plt.pie([income if income > 0 else 1, expense if expense > 0 else 1], 
-                    labels=["Income", "Expense"], autopct="%1.1f%%")
+                    labels=["Income", "Expense"], 
+                    autopct="%1.1f%%",
+                    colors=['#2ecc71', '#e74c3c'],
+                    explode=(0.05, 0.05),
+                    shadow=True)
+            plt.title("📊 Income vs Expense Analysis", fontsize=16, fontweight='bold')
         else:
             plt.text(0.5, 0.5, "No Data Available", ha="center", va="center", fontsize=14)
-        plt.savefig(chart_path)
+        plt.savefig(chart_path, bbox_inches='tight')
         plt.close()
         
-        plt.figure(figsize=(8,5))
+        # Monthly Expense Bar Chart
+        monthly_chart_path = os.path.join(STATIC_DIR, "monthly_chart.png")
+        plt.figure(figsize=(10, 6))
         if monthly_data:
             months = sorted(monthly_data.keys())
             values = [monthly_data[m] for m in months]
-            plt.bar(months, values)
-            plt.title("Monthly Expense Analysis")
-            plt.xticks(rotation=30)
+            bars = plt.bar(months, values, color='#3498db', alpha=0.7)
+            plt.title("📈 Monthly Expense Analysis", fontsize=16, fontweight='bold')
+            plt.xlabel("Month", fontsize=12)
+            plt.ylabel("Expense (₹)", fontsize=12)
+            plt.xticks(rotation=30, ha='right')
+            
+            # Add value labels on bars
+            for bar, value in zip(bars, values):
+                height = bar.get_height()
+                plt.text(bar.get_x() + bar.get_width()/2., height,
+                        f'₹{int(value)}', ha='center', va='bottom', fontsize=10)
+            
+            plt.grid(axis='y', linestyle='--', alpha=0.3)
         else:
-            plt.text(0.5, 0.5, "No Monthly Data", ha="center", va="center", fontsize=14)
+            plt.text(0.5, 0.5, "No Monthly Data Available", ha="center", va="center", fontsize=14)
         plt.tight_layout()
         plt.savefig(monthly_chart_path, bbox_inches='tight')
         plt.close()
         
-        plt.figure(figsize=(6,6))
+        # Category Distribution Pie Chart
+        category_chart_path = os.path.join(STATIC_DIR, "category_chart.png")
+        plt.figure(figsize=(8, 8))
         if category_data:
             filtered_data = {k: v for k, v in category_data.items() if v > 0}
             if filtered_data:
-                plt.pie(filtered_data.values(), labels=filtered_data.keys(), autopct="%1.1f%%")
-                plt.title("Category Analytics")
+                colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
+                plt.pie(filtered_data.values(), 
+                        labels=filtered_data.keys(), 
+                        autopct="%1.1f%%",
+                        colors=colors[:len(filtered_data)],
+                        shadow=True,
+                        startangle=90)
+                plt.title("📊 Category-wise Expense Distribution", fontsize=16, fontweight='bold')
             else:
                 plt.text(0.5, 0.5, "No Expense Data", ha="center", va="center", fontsize=14)
         else:
-            plt.text(0.5, 0.5, "No Category Data", ha="center", va="center", fontsize=14)
-        plt.savefig(category_chart_path)
+            plt.text(0.5, 0.5, "No Category Data Available", ha="center", va="center", fontsize=14)
+        plt.savefig(category_chart_path, bbox_inches='tight')
         plt.close()
         
+        print("✅ Charts generated successfully!")
+        
     except Exception as e:
-        print(f"Chart generation error: {e}")
+        print(f"❌ Chart generation error: {e}")
+        import traceback
+        traceback.print_exc()
     
     conn.close()
     
@@ -790,7 +764,7 @@ def pdf():
     data = cursor.fetchall()
     conn.close()
     
-    file = os.path.join(STATIC_FOLDER, "report.pdf")
+    file = os.path.join(STATIC_DIR, "report.pdf")
     doc = SimpleDocTemplate(file, pagesize=A4)
     styles = getSampleStyleSheet()
     content = []
@@ -851,9 +825,7 @@ def delete(id):
 # ================= SERVE STATIC FILES =================
 @app.route('/static/<path:filename>')
 def serve_static(filename):
-    return send_from_directory(STATIC_FOLDER, filename)
-
-from flask import send_from_directory
+    return send_from_directory(STATIC_DIR, filename)
 
 # ================= RUN =================
 if __name__ == "__main__":
