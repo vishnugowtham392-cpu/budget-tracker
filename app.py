@@ -16,6 +16,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
 import json
+import datetime
 
 # ================= LOGGING =================
 logging.basicConfig(level=logging.DEBUG)
@@ -30,7 +31,7 @@ app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_USERNAME'] = 'vishnugowtham392@gmail.com'
-app.config['MAIL_PASSWORD'] = 'brdxtgyqobiwjeel'  # Replace with your App Password
+app.config['MAIL_PASSWORD'] = 'brdxtgyqobiwjeel'
 app.config['MAIL_DEFAULT_SENDER'] = 'vishnugowtham392@gmail.com'
 app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
@@ -98,6 +99,13 @@ def init_db():
         conn.commit()
         conn.close()
         print(f"✅ Database initialized successfully at: {DATABASE_PATH}")
+        
+        # Verify database is writable
+        test_conn = sqlite3.connect(DATABASE_PATH)
+        test_conn.cursor().execute("SELECT 1")
+        test_conn.close()
+        print("✅ Database is writable")
+        
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         raise
@@ -119,6 +127,124 @@ def handle_exception(e):
     print(f"❌ Error: {error_msg}")
     print(traceback.format_exc())
     return f"Error: {error_msg}", 500
+
+# ================= VIEW DATABASE ROUTE =================
+@app.route('/view-db')
+def view_db():
+    """View database contents in browser"""
+    if 'user' not in session:
+        return redirect('/login')
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Database Viewer</title>
+            <style>
+                body { font-family: Arial; padding: 20px; background: #f4f6f9; }
+                .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 10px lightgray; }
+                h1 { color: #28a745; }
+                .table-container { overflow-x: auto; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+                th { background: #28a745; color: white; }
+                tr:hover { background-color: #f5f5f5; }
+                .back { display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+                .back:hover { background: #218838; }
+                .db-info { background: #e8f5e9; padding: 10px; border-radius: 5px; margin: 10px 0; }
+                .count { font-weight: bold; color: #28a745; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>🗄️ Database Viewer</h1>
+                <a href="/" class="back">⬅ Back to Dashboard</a>
+                <div class="db-info">
+                    <strong>Database Path:</strong> """ + DATABASE_PATH + """<br>
+                    <strong>Database Size:</strong> """ + str(os.path.getsize(DATABASE_PATH) if os.path.exists(DATABASE_PATH) else 0) + """ bytes
+                </div>
+            </div>
+        """
+        
+        for table in tables:
+            table_name = table[0]
+            cursor.execute(f"SELECT * FROM {table_name}")
+            rows = cursor.fetchall()
+            
+            # Get column names
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            html += f"""
+            <div class="card">
+                <h2>📋 Table: {table_name}</h2>
+                <p>Total Records: <span class="count">{len(rows)}</span></p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+            """
+            
+            for col in columns:
+                html += f"<th>{col}</th>"
+            
+            html += """
+                            </tr>
+                        </thead>
+                        <tbody>
+            """
+            
+            for row in rows:
+                html += "<tr>"
+                for i in range(len(columns)):
+                    html += f"<td>{row[i] if row[i] is not None else 'NULL'}</td>"
+                html += "</tr>"
+            
+            html += """
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            """
+        
+        html += """
+        </body>
+        </html>
+        """
+        
+        conn.close()
+        return html
+        
+    except Exception as e:
+        return f"Error viewing database: {str(e)}"
+
+# ================= DOWNLOAD DATABASE =================
+@app.route('/download-db')
+def download_db():
+    """Download the database file"""
+    if 'user' not in session:
+        return redirect('/login')
+    
+    try:
+        if os.path.exists(DATABASE_PATH):
+            return send_from_directory(
+                os.path.dirname(DATABASE_PATH),
+                os.path.basename(DATABASE_PATH),
+                as_attachment=True,
+                download_name='budget.db'
+            )
+        else:
+            return "Database file not found!", 404
+    except Exception as e:
+        return f"Error downloading database: {str(e)}", 500
 
 # ================= EMAIL WARNING FUNCTION =================
 def send_warning_email(email, username, expense, budget_limit):
@@ -392,6 +518,7 @@ def home():
         
         cursor.execute("INSERT INTO transactions (username,title,amount,type,category,item,date) VALUES(?,?,?,?,?,?,?)", (username, title, amount, ttype, category, item, date))
         conn.commit()
+        print(f"✅ Transaction added: {title} - ₹{amount} - {ttype}")
     
     cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     transactions = cursor.fetchall()
@@ -546,8 +673,9 @@ def home():
             plt.title("📊 Income vs Expense Analysis", fontsize=16, fontweight='bold')
         else:
             plt.text(0.5, 0.5, "No Data Available", ha="center", va="center", fontsize=14)
-        plt.savefig(chart_path, bbox_inches='tight')
+        plt.savefig(chart_path, bbox_inches='tight', dpi=100)
         plt.close()
+        print(f"✅ Pie chart saved: {chart_path}")
         
         # Monthly Expense Bar Chart
         monthly_chart_path = os.path.join(STATIC_DIR, "monthly_chart.png")
@@ -571,8 +699,9 @@ def home():
         else:
             plt.text(0.5, 0.5, "No Monthly Data Available", ha="center", va="center", fontsize=14)
         plt.tight_layout()
-        plt.savefig(monthly_chart_path, bbox_inches='tight')
+        plt.savefig(monthly_chart_path, bbox_inches='tight', dpi=100)
         plt.close()
+        print(f"✅ Monthly chart saved: {monthly_chart_path}")
         
         # Category Distribution Pie Chart
         category_chart_path = os.path.join(STATIC_DIR, "category_chart.png")
@@ -592,8 +721,9 @@ def home():
                 plt.text(0.5, 0.5, "No Expense Data", ha="center", va="center", fontsize=14)
         else:
             plt.text(0.5, 0.5, "No Category Data Available", ha="center", va="center", fontsize=14)
-        plt.savefig(category_chart_path, bbox_inches='tight')
+        plt.savefig(category_chart_path, bbox_inches='tight', dpi=100)
         plt.close()
+        print(f"✅ Category chart saved: {category_chart_path}")
         
         print("✅ Charts generated successfully!")
         
@@ -667,6 +797,8 @@ def debug_db():
         <div class="card">
             <h1>📊 Database Debug</h1>
             <a href="/" class="back">⬅ Back to Dashboard</a>
+            <a href="/view-db" class="back" style="background:#17a2b8;">🗄️ View Full Database</a>
+            <a href="/download-db" class="back" style="background:#ff9800;">⬇️ Download Database</a>
         </div>
         
         <div class="card">
