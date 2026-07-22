@@ -49,10 +49,13 @@ else:
     BASE_DIR = r"E:\Budget Tracker"
     print("🔧 Running locally - using E:\Budget Tracker")
 
-DATABASE_PATH = os.path.join(BASE_DIR, "budget.db")
+DATABASE_PATH = os.path.join(BASE_DIR, "database", "budget.db")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
+
+# Create database directory
+os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
 
 for folder in [STATIC_DIR, UPLOAD_DIR, PROFILES_DIR]:
     os.makedirs(folder, exist_ok=True)
@@ -298,122 +301,6 @@ def clear_cache():
             return "✅ No cached charts found"
     except Exception as e:
         return f"❌ Error clearing cache: {str(e)}"
-
-# ================= SHOW DATABASE LOCATION =================
-@app.route('/show-db-location')
-def show_db_location():
-    if 'user' not in session:
-        return redirect('/login')
-    
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT id, username, email, photo FROM users")
-        users = cursor.fetchall()
-        
-        cursor.execute("SELECT COUNT(*) FROM transactions")
-        total_transactions = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM transactions WHERE username=?", (session['user'],))
-        user_transactions = cursor.fetchone()[0]
-        
-        db_size = os.path.getsize(DATABASE_PATH) if os.path.exists(DATABASE_PATH) else 0
-        db_size_mb = db_size / (1024 * 1024)
-        
-        db_exists = os.path.exists(DATABASE_PATH)
-        db_path = DATABASE_PATH
-        is_render = IS_RENDER
-        
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Database Location</title>
-            <style>
-                body {{ font-family: Arial; padding: 20px; background: #f4f6f9; }}
-                .card {{ background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 10px lightgray; }}
-                h1 {{ color: #28a745; }}
-                .db-path {{ background: #263238; color: #fff; padding: 15px; border-radius: 8px; font-family: monospace; }}
-                .stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 15px 0; }}
-                .stat-box {{ background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }}
-                .stat-number {{ font-size: 24px; font-weight: bold; color: #28a745; }}
-                .back {{ display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }}
-                table {{ width: 100%; border-collapse: collapse; }}
-                th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }}
-                th {{ background: #28a745; color: white; }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <h1>🗄️ Database Storage Location</h1>
-                <a href="/" class="back">⬅ Back to Dashboard</a>
-                <a href="/clear-cache" class="back" style="background:#ff9800;">🔄 Clear Chart Cache</a>
-                
-                <div class="db-path">📍 {db_path}</div>
-                
-                <div class="stats">
-                    <div class="stat-box">
-                        <div class="stat-number">{len(users)}</div>
-                        <div>Total Users</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{total_transactions}</div>
-                        <div>Total Transactions</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{user_transactions}</div>
-                        <div>Your Transactions</div>
-                    </div>
-                </div>
-                
-                <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                    <strong>📁 Running on:</strong> {'Render' if is_render else 'Local'}<br>
-                    <strong>📦 Database size:</strong> {db_size_mb:.2f} MB<br>
-                    <strong>✅ File exists:</strong> {db_exists}
-                </div>
-        """
-        
-        if len(users) > 0:
-            html += """
-                <h3>👤 Registered Users:</h3>
-                <table>
-                    <tr><th>ID</th><th>Username</th><th>Email</th></tr>
-            """
-            for user in users:
-                html += f"<tr><td>{user[0]}</td><td>{user[1]}</td><td>{user[2]}</td></tr>"
-            html += "</table>"
-        
-        html += """
-            </div>
-        </body>
-        </html>
-        """
-        
-        conn.close()
-        return html
-        
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# ================= DOWNLOAD DATABASE =================
-@app.route('/download-db')
-def download_db():
-    if 'user' not in session:
-        return redirect('/login')
-    
-    try:
-        if os.path.exists(DATABASE_PATH):
-            return send_from_directory(
-                os.path.dirname(DATABASE_PATH) or '.',
-                os.path.basename(DATABASE_PATH),
-                as_attachment=True,
-                download_name='budget.db'
-            )
-        else:
-            return "Database file not found!", 404
-    except Exception as e:
-        return f"Error downloading database: {str(e)}", 500
 
 # ================= GET DAILY SUGGESTIONS =================
 @app.route('/get-suggestions')
@@ -1024,7 +911,7 @@ def home():
         chart_timestamp=chart_timestamp
     )
 
-# ================= AI CHATBOT WITH FUN & ENTERTAINMENT =================
+# ================= AI CHATBOT WITH FUN & ENTERTAINMENT - FIXED =================
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
     msg = request.form['message'].lower().strip()
@@ -1066,11 +953,17 @@ def chatbot():
         reply = f"💸 Your total expense is ₹{total_expense}\n\n💡 Tip: Review your expenses to find where you can cut back!"
     
     elif "balance" in msg:
-        reply = f"🏦 Your current balance is ₹{balance}\n\n{'🎉 Great job maintaining a positive balance!' if balance > 0 else '⚠️ You need to reduce your expenses!'}"
+        if balance > 0:
+            reply = f"🏦 Your current balance is ₹{balance}\n\n🎉 Great job maintaining a positive balance!"
+        else:
+            reply = f"🏦 Your current balance is ₹{balance}\n\n⚠️ You need to reduce your expenses!"
     
     elif "budget" in msg:
         remaining = budget_limit - total_expense
-        reply = f"📊 Remaining budget: ₹{remaining}\n\n{'✅ You\'re within your budget limit!' if remaining > 0 else '🚨 You\'ve exceeded your budget limit!'}"
+        if remaining > 0:
+            reply = f"📊 Remaining budget: ₹{remaining}\n\n✅ You are within your budget limit!"
+        else:
+            reply = f"📊 Remaining budget: ₹{remaining}\n\n🚨 You have exceeded your budget limit!"
     
     elif "top category" in msg or "highest expense" in msg:
         reply = f"📈 Highest spending category: {top_category}\n\n💡 Try to reduce spending in this category!"
@@ -1079,20 +972,20 @@ def chatbot():
     elif "joke" in msg or "funny" in msg:
         jokes = [
             "Why did the budget go to therapy? It had too many expenses! 😂",
-            "What did the wallet say to the credit card? 'You're always taking me for granted!' 💳😄",
+            "What did the wallet say to the credit card? You are always taking me for granted! 💳😄",
             "How much does a budget weigh? Just a few cents! 🤣",
-            "Why don't budgets tell secrets? Because they're always spent! 😅",
-            "What's a budget's favorite dance? The money-saving shuffle! 💃😂",
+            "Why dont budgets tell secrets? Because they are always spent! 😅",
+            "Whats a budget favorite dance? The money-saving shuffle! 💃😂",
             "Why did the financial advisor break up with the budget? It was too controlling! 😂",
-            "What do you call a budget that's always right? A prophet (profit)! 🤣"
+            "What do you call a budget that is always right? A prophet! 🤣"
         ]
-        reply = random.choice(jokes) + "\n\n😂 Hope that made you laugh! Want another joke? Just say 'tell me a joke'!"
+        reply = random.choice(jokes) + "\n\n😂 Hope that made you laugh! Want another joke? Just say tell me a joke!"
     
     elif "motivation" in msg or "motivate" in msg or "inspire" in msg:
         motivational = [
             "💪 Remember: Every rupee saved is a rupee earned!",
             "🌟 Small savings today = Big investments tomorrow!",
-            "🚀 You're doing great! Keep tracking your expenses!",
+            "🚀 You are doing great! Keep tracking your expenses!",
             "🎯 Set a goal and watch your savings grow!",
             "💰 Rich people save first, spend later. Be like them!",
             "🔥 The best time to start saving was yesterday. The next best time is NOW!",
@@ -1105,19 +998,19 @@ def chatbot():
         facts = [
             "💡 The average person spends ₹5000 on unnecessary items every month!",
             "💡 Saving ₹100 daily = ₹36,500 saved in a year!",
-            "💡 70% of people don't track their expenses - you're already ahead!",
+            "💡 70% of people do not track their expenses - you are already ahead!",
             "💡 The 50-30-20 rule: 50% needs, 30% wants, 20% savings!",
-            "💡 India's savings rate is 30% of GDP - you can do better!",
+            "💡 Indias savings rate is 30% of GDP - you can do better!",
             "💡 The average Indian spends ₹1500 on tea/coffee per month!",
             "💡 Cooking at home can save you ₹10,000 per month!"
         ]
-        reply = random.choice(facts) + "\n\n🧠 Knowledge is power! Want more facts? Ask 'tell me a fact'!"
+        reply = random.choice(facts) + "\n\n🧠 Knowledge is power! Want more facts? Ask tell me a fact!"
     
     elif "advice" in msg or "tip" in msg:
         advice = [
             "📝 Track every expense - knowledge is power!",
             "🎯 Set a monthly budget and stick to it!",
-            "🍱 Cook at home - it's healthier and cheaper!",
+            "🍱 Cook at home - it is healthier and cheaper!",
             "🚶 Walk or cycle for short distances - save fuel!",
             "📊 Review your expenses weekly - find waste!",
             "💳 Use cash instead of cards - feel the money leaving!",
@@ -1131,28 +1024,28 @@ def chatbot():
     
     elif "movie" in msg or "entertainment" in msg or "watch" in msg:
         movies = [
-            "🎬 Watch 'The Pursuit of Happyness' - it's about never giving up!",
-            "🎬 Watch 'Slumdog Millionaire' - a story of hope and money!",
-            "🎬 Watch 'The Wolf of Wall Street' - learn about money and excess!",
-            "🎬 Watch 'Wall Street' - the classic finance movie!",
-            "🎬 Watch 'The Big Short' - learn about the financial crisis!",
-            "🎬 Watch 'Moneyball' - data-driven success story!",
-            "🎬 Watch 'The Founder' - story of McDonald's success!",
-            "🎬 Watch 'Hidden Figures' - incredible true story of success!"
+            "🎬 Watch The Pursuit of Happyness - it is about never giving up!",
+            "🎬 Watch Slumdog Millionaire - a story of hope and money!",
+            "🎬 Watch The Wolf of Wall Street - learn about money and excess!",
+            "🎬 Watch Wall Street - the classic finance movie!",
+            "🎬 Watch The Big Short - learn about the financial crisis!",
+            "🎬 Watch Moneyball - data-driven success story!",
+            "🎬 Watch The Founder - story of McDonalds success!",
+            "🎬 Watch Hidden Figures - incredible true story of success!"
         ]
         reply = random.choice(movies) + "\n\n🍿 Happy watching! Let me know if you want more recommendations!"
     
     elif "book" in msg or "read" in msg:
         books = [
-            "📚 'Rich Dad Poor Dad' by Robert Kiyosaki - the ultimate finance book!",
-            "📚 'Think and Grow Rich' by Napoleon Hill - classic success book!",
-            "📚 'The Intelligent Investor' by Benjamin Graham - for smart investing!",
-            "📚 'The Psychology of Money' by Morgan Housel - understand money mindset!",
-            "📚 'Atomic Habits' by James Clear - build saving habits!",
-            "📚 'The 5 AM Club' by Robin Sharma - master your mornings!",
-            "📚 'The Alchemist' by Paulo Coelho - follow your dreams!"
+            "📚 Rich Dad Poor Dad by Robert Kiyosaki - the ultimate finance book!",
+            "📚 Think and Grow Rich by Napoleon Hill - classic success book!",
+            "📚 The Intelligent Investor by Benjamin Graham - for smart investing!",
+            "📚 The Psychology of Money by Morgan Housel - understand money mindset!",
+            "📚 Atomic Habits by James Clear - build saving habits!",
+            "📚 The 5 AM Club by Robin Sharma - master your mornings!",
+            "📚 The Alchemist by Paulo Coelho - follow your dreams!"
         ]
-        reply = random.choice(books) + "\n\n📖 Happy reading! Want another book suggestion? Ask 'recommend a book'!"
+        reply = random.choice(books) + "\n\n📖 Happy reading! Want another book suggestion? Ask recommend a book!"
     
     elif "challenge" in msg or "game" in msg:
         challenges = [
@@ -1163,7 +1056,7 @@ def chatbot():
             "🎯 Challenge: Walk to work/college for 5 days - save fuel and stay fit!",
             "🎯 Challenge: Cancel 2 unused subscriptions today - save ₹500/month!"
         ]
-        reply = random.choice(challenges) + "\n\n💪 Are you ready for the challenge? Say 'I accept' to commit!"
+        reply = random.choice(challenges) + "\n\n💪 Are you ready for the challenge? Say I accept to commit!"
     
     elif "saving" in msg or "save" in msg:
         saving_tips = [
@@ -1180,59 +1073,59 @@ def chatbot():
         greetings = [
             f"👋 Hello {username}! Welcome back to Budget Tracker!",
             f"🤖 Hey {username}! Ready to save some money today?",
-            f"💪 Hi {username}! Let's make your finances better!",
+            f"💪 Hi {username}! Let us make your finances better!",
             f"🌟 Welcome back {username}! How can I help you today?"
         ]
-        reply = random.choice(greetings) + "\n\n💡 Try asking me: 'total income', 'total expense', 'joke', 'motivation', 'advice', or 'challenge'!"
+        reply = random.choice(greetings) + "\n\n💡 Try asking me: total income, total expense, joke, motivation, advice, or challenge!"
     
     elif "how are you" in msg:
         replies = [
-            "🤖 I'm great! Helping people save money makes me happy! 😊",
-            "💪 I'm fantastic! Just had a virtual coffee and I'm ready to help you save! ☕",
-            "🌟 I'm wonderful! Excited to help you achieve your financial goals! 💰"
+            "🤖 I am great! Helping people save money makes me happy! 😊",
+            "💪 I am fantastic! Just had a virtual coffee and I am ready to help you save! ☕",
+            "🌟 I am wonderful! Excited to help you achieve your financial goals! 💰"
         ]
         reply = random.choice(replies)
     
     elif "thank" in msg or "thanks" in msg:
         replies = [
-            "😊 You're welcome! Happy to help you save money!",
-            "💪 Anytime! Let's achieve your financial goals together!",
+            "😊 You are welcome! Happy to help you save money!",
+            "💪 Anytime! Lets achieve your financial goals together!",
             "🌟 My pleasure! Keep tracking your expenses!"
         ]
         reply = random.choice(replies)
     
     elif "your name" in msg or "who are you" in msg:
-        reply = "🤖 I'm Budget AI Assistant - your personal financial advisor and savings coach! I'm here to help you track expenses, save money, and achieve your financial goals. Plus, I know a few good jokes! 😄"
+        reply = "🤖 I am Budget AI Assistant - your personal financial advisor and savings coach! I am here to help you track expenses, save money, and achieve your financial goals. Plus, I know a few good jokes! 😄"
     
     elif "fun" in msg or "entertain" in msg:
         fun_responses = [
-            "🎉 Let's have some fun with your finances!",
-            "😄 Money doesn't have to be boring!",
+            "🎉 Lets have some fun with your finances!",
+            "😄 Money does not have to be boring!",
             "🎮 Think of saving money as a game - try to beat your high score!",
             "💰 Saving money can be fun - celebrate every small win!"
         ]
-        reply = random.choice(fun_responses) + "\n\n🎯 Try asking for a 'joke' or 'motivation'!"
+        reply = random.choice(fun_responses) + "\n\n🎯 Try asking for a joke or motivation!"
     
     # ================= RANDOM RESPONSE FOR UNKNOWN =================
     else:
         random_responses = [
-            f"🤔 Hmm, I didn't quite get that, {username}. Try asking about:",
+            f"🤔 Hmm, I did not quite get that, {username}. Try asking about:",
             "💡 I can help with questions like:",
-            "🤖 I'm not sure about that. Here are some things I can answer:"
+            "🤖 I am not sure about that. Here are some things I can answer:"
         ]
         
         suggestions_list = [
-            "💰 'total income' - to see your income",
-            "💸 'total expense' - to see your expenses",
-            "🏦 'balance' - to check your balance",
-            "📊 'budget' - to check remaining budget",
-            "📈 'top category' - to see highest spending",
-            "😂 'joke' - for a good laugh",
-            "💪 'motivation' - for daily inspiration",
-            "📝 'advice' - for saving tips",
-            "🎯 'challenge' - for saving challenges",
-            "🎬 'movie' - for entertainment recommendations",
-            "📚 'book' - for book recommendations"
+            "💰 total income - to see your income",
+            "💸 total expense - to see your expenses",
+            "🏦 balance - to check your balance",
+            "📊 budget - to check remaining budget",
+            "📈 top category - to see highest spending",
+            "😂 joke - for a good laugh",
+            "💪 motivation - for daily inspiration",
+            "📝 advice - for saving tips",
+            "🎯 challenge - for saving challenges",
+            "🎬 movie - for entertainment recommendations",
+            "📚 book - for book recommendations"
         ]
         
         reply = random.choice(random_responses) + "\n\n" + "\n".join(random.sample(suggestions_list, 5))
