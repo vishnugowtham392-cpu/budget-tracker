@@ -17,7 +17,8 @@ from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
 import json
 import datetime
-import shutil
+import time
+import random
 
 # ================= LOGGING =================
 logging.basicConfig(level=logging.DEBUG)
@@ -39,7 +40,6 @@ app.config['MAIL_ASCII_ATTACHMENTS'] = False
 mail = Mail(app)
 
 # ================= DATABASE & FILE PATHS =================
-# Check if running on Render
 IS_RENDER = os.environ.get('RENDER') == 'true'
 
 if IS_RENDER:
@@ -49,15 +49,11 @@ else:
     BASE_DIR = r"E:\Budget Tracker"
     print("🔧 Running locally - using E:\Budget Tracker")
 
-# Database file path
 DATABASE_PATH = os.path.join(BASE_DIR, "budget.db")
-
-# Static folders
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
 
-# Create all necessary directories
 for folder in [STATIC_DIR, UPLOAD_DIR, PROFILES_DIR]:
     os.makedirs(folder, exist_ok=True)
 
@@ -116,11 +112,158 @@ def init_db():
         print(f"❌ Database initialization failed: {e}")
         raise
 
-# Initialize the database
 init_db()
 
 # ================= GLOBAL VARIABLE =================
 budget_limit = 5000
+
+# ================= DAILY SUGGESTIONS DATABASE =================
+DAILY_SUGGESTIONS = {
+    "morning": [
+        {"activity": "🌅 Wake up early", "save": "Save electricity by using natural light", "tip": "₹500/month saved on electricity"},
+        {"activity": "☕ Home-made coffee/tea", "save": "Skip outside coffee", "tip": "₹600/month saved"},
+        {"activity": "🥣 Eat breakfast at home", "save": "Avoid outside food", "tip": "₹1000/month saved"},
+        {"activity": "🚶 Walk to nearby places", "save": "Save fuel money", "tip": "₹300/month saved"},
+        {"activity": "📝 Plan your day", "save": "Avoid impulse spending", "tip": "₹2000/month saved"}
+    ],
+    "afternoon": [
+        {"activity": "🍱 Pack lunch from home", "save": "Avoid ordering food", "tip": "₹1500/month saved"},
+        {"activity": "💧 Drink water instead of soft drinks", "save": "Healthy and cheap", "tip": "₹300/month saved"},
+        {"activity": "📚 Read instead of shopping", "save": "Avoid unnecessary purchases", "tip": "₹1000/month saved"},
+        {"activity": "🚌 Use public transport", "save": "Save petrol/diesel", "tip": "₹800/month saved"},
+        {"activity": "🛒 Make shopping list", "save": "Avoid impulse buying", "tip": "₹1500/month saved"}
+    ],
+    "evening": [
+        {"activity": "🏋️ Exercise at home", "save": "Save gym membership", "tip": "₹1000/month saved"},
+        {"activity": "🍳 Cook dinner at home", "save": "Save restaurant money", "tip": "₹2000/month saved"},
+        {"activity": "📺 Watch free content", "save": "Cancel OTT subscriptions", "tip": "₹500/month saved"},
+        {"activity": "🌿 Grow small plants", "save": "Save on vegetables", "tip": "₹300/month saved"},
+        {"activity": "💡 Use LED bulbs", "save": "Save electricity bill", "tip": "₹200/month saved"}
+    ],
+    "weekly": [
+        {"activity": "🛒 Bulk grocery shopping", "save": "Buy in bulk to save", "tip": "₹500/month saved"},
+        {"activity": "🚗 Carpool with colleagues", "save": "Share fuel costs", "tip": "₹600/month saved"},
+        {"activity": "🏠 DIY home repairs", "save": "Save service charges", "tip": "₹500/month saved"},
+        {"activity": "📱 Use prepaid plan", "save": "Control mobile expenses", "tip": "₹200/month saved"},
+        {"activity": "💳 Track all expenses", "save": "Identify waste", "tip": "₹1000/month saved"}
+    ]
+}
+
+# ================= SMART ITEMS DATABASE =================
+SMART_ITEMS = {
+    "idli": {"alternative": "Home-made Idli 🥣", "reason": "Home food usually costs less", "benefit": "Healthy breakfast + lower spending", "motivation": "Healthy mornings create healthy savings 🌞"},
+    "dosai": {"alternative": "Idli 🥣", "reason": "Less oil and lower cost", "benefit": "Healthy and saves money", "motivation": "Small savings create big results 💪"},
+    "dosa": {"alternative": "Idli 🥣", "reason": "Less oil and lower cost", "benefit": "Healthy and saves money", "motivation": "Small savings create big results 💪"},
+    "chips": {"alternative": "Fruits 🍎", "reason": "Chips are processed snacks", "benefit": "Better nutrition + savings", "motivation": "Healthy snacks, healthy life 🌟"},
+    "petrol": {"alternative": "Public Transport 🚌", "reason": "Fuel costs increase over time", "benefit": "Reduce travel expenses", "motivation": "Travel smart 🌍"},
+    "diesel": {"alternative": "Public Transport 🚌", "reason": "Fuel costs increase over time", "benefit": "Reduce travel expenses", "motivation": "Travel smart 🌍"},
+    "tea": {"alternative": "Home-made Tea ☕", "reason": "Daily outside tea adds up", "benefit": "Reduce repeated expenses", "motivation": "₹20/day ≈ ₹600/month 💰"},
+    "coffee": {"alternative": "Milk/Home Coffee 🥛", "reason": "Outside coffee is expensive", "benefit": "Lower cost", "motivation": "Save little, gain more 🚀"},
+    "biscuit": {"alternative": "Home-made Snacks 🍪", "reason": "Packaged snacks are expensive", "benefit": "Healthy + savings", "motivation": "Homemade is always better ❤️"},
+    "biscuits": {"alternative": "Home-made Snacks 🍪", "reason": "Packaged snacks are expensive", "benefit": "Healthy + savings", "motivation": "Homemade is always better ❤️"},
+    "lunch": {"alternative": "Home-made Lunch 🍱", "reason": "Outside food is expensive", "benefit": "Save ₹1500/month", "motivation": "Packed with love ❤️"},
+    "dinner": {"alternative": "Home-made Dinner 🍳", "reason": "Restaurant food is costly", "benefit": "Save ₹2000/month", "motivation": "Cook with love, save money 💰"},
+    "movie": {"alternative": "Netflix/Amazon Prime 📺", "reason": "Theatre tickets are expensive", "benefit": "Save ₹500/month", "motivation": "Watch from home comfortably 🏠"},
+    "zomato": {"alternative": "Cook at Home 🍳", "reason": "Delivery charges add up", "benefit": "Save ₹1000/month", "motivation": "Fresh and healthy food 🌿"},
+    "swiggy": {"alternative": "Cook at Home 🍳", "reason": "Delivery charges add up", "benefit": "Save ₹1000/month", "motivation": "Fresh and healthy food 🌿"},
+    "uber": {"alternative": "Public Transport 🚌", "reason": "Cab charges are high", "benefit": "Save ₹2000/month", "motivation": "Travel like a local 🌍"},
+    "ola": {"alternative": "Public Transport 🚌", "reason": "Cab charges are high", "benefit": "Save ₹2000/month", "motivation": "Travel like a local 🌍"},
+    "cigarette": {"alternative": "Stop Smoking 🚭", "reason": "Health is wealth", "benefit": "Save ₹3000/month + good health", "motivation": "Quit smoking, save life 💪"},
+    "cigarettes": {"alternative": "Stop Smoking 🚭", "reason": "Health is wealth", "benefit": "Save ₹3000/month + good health", "motivation": "Quit smoking, save life 💪"},
+    "alcohol": {"alternative": "Healthy Juice 🧃", "reason": "Alcohol is expensive", "benefit": "Save ₹5000/month + good health", "motivation": "Stay healthy, stay wealthy 💪"},
+    "beer": {"alternative": "Healthy Juice 🧃", "reason": "Alcohol is expensive", "benefit": "Save ₹5000/month + good health", "motivation": "Stay healthy, stay wealthy 💪"},
+    "branded": {"alternative": "Local Brands 🏷️", "reason": "Branded items are overpriced", "benefit": "Save 50% on shopping", "motivation": "Value for money 💰"},
+    "gym": {"alternative": "Home Workout 🏋️", "reason": "Gym membership is expensive", "benefit": "Save ₹1000/month", "motivation": "Exercise at home 🏠"},
+    "subscription": {"alternative": "Cancel Unused Subscriptions ❌", "reason": "You're paying for unused services", "benefit": "Save ₹500/month", "motivation": "Only pay for what you use 💡"},
+    "netflix": {"alternative": "Free Alternatives 📺", "reason": "Multiple OTT subscriptions add up", "benefit": "Save ₹500/month", "motivation": "Share with friends 👥"},
+    "amazon": {"alternative": "Plan Shopping 📝", "reason": "Impulse shopping is dangerous", "benefit": "Save ₹2000/month", "motivation": "List before you shop 📋"},
+    "flipkart": {"alternative": "Plan Shopping 📝", "reason": "Impulse shopping is dangerous", "benefit": "Save ₹2000/month", "motivation": "List before you shop 📋"},
+    "pizza": {"alternative": "Home-made Pizza 🍕", "reason": "Restaurant pizza is expensive", "benefit": "Save ₹500/month", "motivation": "Cook with family 👨‍👩‍👧"},
+    "burger": {"alternative": "Home-made Burger 🍔", "reason": "Fast food is expensive", "benefit": "Save ₹500/month", "motivation": "Healthy homemade burgers 🌿"},
+    "biriyani": {"alternative": "Home-made Biriyani 🍚", "reason": "Restaurant biriyani is costly", "benefit": "Save ₹600/month", "motivation": "Homemade is tastier ❤️"},
+    "biryani": {"alternative": "Home-made Biriyani 🍚", "reason": "Restaurant biriyani is costly", "benefit": "Save ₹600/month", "motivation": "Homemade is tastier ❤️"},
+    "chai": {"alternative": "Home-made Tea ☕", "reason": "Daily chai adds up", "benefit": "Save ₹600/month", "motivation": "₹20/day × 30 = ₹600 💰"},
+    "coldrink": {"alternative": "Water/Juice 🧃", "reason": "Cold drinks are unhealthy", "benefit": "Save ₹300/month", "motivation": "Stay healthy, stay fit 🌿"},
+    "icecream": {"alternative": "Home-made Ice Cream 🍦", "reason": "Store ice cream is expensive", "benefit": "Save ₹300/month", "motivation": "Make at home with love ❤️"},
+    "chocolate": {"alternative": "Fruits 🍎", "reason": "Chocolates are expensive", "benefit": "Save ₹200/month", "motivation": "Healthy and sweet 🌿"},
+    "cake": {"alternative": "Home-made Cake 🎂", "reason": "Store cake is expensive", "benefit": "Save ₹400/month", "motivation": "Bake with love ❤️"},
+    "pastry": {"alternative": "Home-made Pastry 🍰", "reason": "Store pastry is expensive", "benefit": "Save ₹300/month", "motivation": "Homemade is better ❤️"},
+    "sandwich": {"alternative": "Home-made Sandwich 🥪", "reason": "Store sandwich is expensive", "benefit": "Save ₹500/month", "motivation": "Fresh and healthy 🌿"},
+    "noodles": {"alternative": "Home-made Noodles 🍜", "reason": "Restaurant noodles are expensive", "benefit": "Save ₹400/month", "motivation": "Make at home with veggies 🌿"},
+    "pasta": {"alternative": "Home-made Pasta 🍝", "reason": "Restaurant pasta is expensive", "benefit": "Save ₹400/month", "motivation": "Italian at home 🇮🇹"},
+    "friedrice": {"alternative": "Home-made Fried Rice 🍚", "reason": "Restaurant is expensive", "benefit": "Save ₹500/month", "motivation": "Chinese at home 🥢"},
+    "fried rice": {"alternative": "Home-made Fried Rice 🍚", "reason": "Restaurant is expensive", "benefit": "Save ₹500/month", "motivation": "Chinese at home 🥢"},
+    "maggi": {"alternative": "Home-made Maggi 🍜", "reason": "Store Maggi is expensive", "benefit": "Save ₹200/month", "motivation": "Make at home 🏠"},
+    "egg": {"alternative": "Buy in Bulk 🥚", "reason": "Buying single is costly", "benefit": "Save ₹100/month", "motivation": "Bulk is better 💰"},
+    "milk": {"alternative": "Buy in Bulk 🥛", "reason": "Buying single is costly", "benefit": "Save ₹150/month", "motivation": "Bulk is better 💰"},
+    "curd": {"alternative": "Home-made Curd 🥛", "reason": "Store curd is expensive", "benefit": "Save ₹200/month", "motivation": "Make at home 🏠"},
+    "yogurt": {"alternative": "Home-made Curd 🥛", "reason": "Store yogurt is expensive", "benefit": "Save ₹200/month", "motivation": "Make at home 🏠"},
+    "butter": {"alternative": "Home-made Butter 🧈", "reason": "Store butter is expensive", "benefit": "Save ₹150/month", "motivation": "Make at home 🏠"},
+    "jam": {"alternative": "Home-made Jam 🍓", "reason": "Store jam is expensive", "benefit": "Save ₹100/month", "motivation": "Make at home 🏠"},
+    "honey": {"alternative": "Local Honey 🍯", "reason": "Branded honey is expensive", "benefit": "Save ₹200/month", "motivation": "Local is better 🌿"},
+    "oil": {"alternative": "Buy in Bulk 🛢️", "reason": "Small packs are expensive", "benefit": "Save ₹300/month", "motivation": "Bulk is better 💰"},
+    "sugar": {"alternative": "Buy in Bulk 🍚", "reason": "Small packs are expensive", "benefit": "Save ₹100/month", "motivation": "Bulk is better 💰"},
+    "salt": {"alternative": "Buy in Bulk 🧂", "reason": "Small packs are expensive", "benefit": "Save ₹50/month", "motivation": "Bulk is better 💰"},
+    "masala": {"alternative": "Buy in Bulk 🌶️", "reason": "Small packs are expensive", "benefit": "Save ₹150/month", "motivation": "Bulk is better 💰"},
+    "spices": {"alternative": "Buy in Bulk 🌿", "reason": "Small packs are expensive", "benefit": "Save ₹200/month", "motivation": "Bulk is better 💰"},
+    "veg": {"alternative": "Weekly Market 🥬", "reason": "Daily market is expensive", "benefit": "Save ₹400/month", "motivation": "Weekly shopping saves time & money 💰"},
+    "vegetable": {"alternative": "Weekly Market 🥬", "reason": "Daily market is expensive", "benefit": "Save ₹400/month", "motivation": "Weekly shopping saves time & money 💰"},
+    "vegetables": {"alternative": "Weekly Market 🥬", "reason": "Daily market is expensive", "benefit": "Save ₹400/month", "motivation": "Weekly shopping saves time & money 💰"},
+    "fruit": {"alternative": "Weekly Market 🍎", "reason": "Daily market is expensive", "benefit": "Save ₹300/month", "motivation": "Weekly shopping saves time & money 💰"},
+    "fruits": {"alternative": "Weekly Market 🍎", "reason": "Daily market is expensive", "benefit": "Save ₹300/month", "motivation": "Weekly shopping saves time & money 💰"},
+    "soap": {"alternative": "Buy in Bulk 🧼", "reason": "Small packs are expensive", "benefit": "Save ₹100/month", "motivation": "Bulk is better 💰"},
+    "shampoo": {"alternative": "Buy in Bulk 🧴", "reason": "Small packs are expensive", "benefit": "Save ₹150/month", "motivation": "Bulk is better 💰"},
+    "toothpaste": {"alternative": "Buy in Bulk 🪥", "reason": "Small packs are expensive", "benefit": "Save ₹100/month", "motivation": "Bulk is better 💰"},
+    "toothbrush": {"alternative": "Buy in Bulk 🪥", "reason": "Small packs are expensive", "benefit": "Save ₹50/month", "motivation": "Bulk is better 💰"}
+}
+
+# ================= AI CHATBOT RESPONSES =================
+CHATBOT_RESPONSES = {
+    "greeting": [
+        "👋 Hello! I'm your Budget AI Assistant! How can I help you today?",
+        "🤖 Hey there! Ready to save some money?",
+        "💪 Hello! Let's make your finances better today!",
+        "🌟 Welcome back! I'm here to help you save money!"
+    ],
+    "fun": [
+        "😄 Why did the budget go to therapy? It had too many expenses!",
+        "😂 What did the wallet say to the credit card? 'You're always taking me for granted!'",
+        "🤣 How much does a budget weigh? Just a few cents!",
+        "😅 What's a budget's favorite dance? The money-saving shuffle!",
+        "😂 Why don't budgets tell secrets? Because they're always spent!",
+        "🤣 What do you call a budget that's always right? A prophet (profit)!"
+    ],
+    "motivation": [
+        "💪 Remember: Every rupee saved is a rupee earned!",
+        "🌟 Small savings today = Big investments tomorrow!",
+        "🚀 You're doing great! Keep tracking your expenses!",
+        "🎯 Set a goal and watch your savings grow!",
+        "💰 Rich people save first, spend later. Be like them!",
+        "🔥 The best time to start saving was yesterday. The next best time is NOW!"
+    ],
+    "advice": [
+        "📝 Track every expense - knowledge is power!",
+        "🎯 Set a monthly budget and stick to it!",
+        "🍱 Cook at home - it's healthier and cheaper!",
+        "🚶 Walk or cycle for short distances - save fuel!",
+        "📊 Review your expenses weekly - find waste!",
+        "💳 Use cash instead of cards - feel the money leaving!"
+    ],
+    "entertainment": [
+        "🎬 Movie recommendation: Watch 'The Pursuit of Happyness' - it's about never giving up!",
+        "📚 Book recommendation: 'Rich Dad Poor Dad' - learn about money!",
+        "🎵 Listen to 'Money' by Pink Floyd - classic rock song about money!",
+        "🎮 Play saving games - make saving fun!",
+        "📺 Watch finance YouTube channels - learn while entertained!"
+    ],
+    "daily_tip": [
+        "🌅 Morning tip: Drink water before coffee - save ₹1000/year!",
+        "🌞 Day tip: Walk during lunch break - save gym money!",
+        "🌙 Night tip: Plan tomorrow's meals - save on food!",
+        "📅 Weekly tip: Check all subscriptions - cancel unused ones!",
+        "📆 Monthly tip: Review your bank statement - find hidden charges!"
+    ]
+}
 
 # ================= ROUTES =================
 @app.route('/health')
@@ -178,10 +321,8 @@ def show_db_location():
         db_size = os.path.getsize(DATABASE_PATH) if os.path.exists(DATABASE_PATH) else 0
         db_size_mb = db_size / (1024 * 1024)
         
-        # Get values for display (avoid f-string backslash issues)
         db_exists = os.path.exists(DATABASE_PATH)
         db_path = DATABASE_PATH
-        db_size_display = f"{db_size_mb:.2f} MB"
         is_render = IS_RENDER
         
         html = f"""
@@ -228,7 +369,7 @@ def show_db_location():
                 
                 <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 10px 0;">
                     <strong>📁 Running on:</strong> {'Render' if is_render else 'Local'}<br>
-                    <strong>📦 Database size:</strong> {db_size_display}<br>
+                    <strong>📦 Database size:</strong> {db_size_mb:.2f} MB<br>
                     <strong>✅ File exists:</strong> {db_exists}
                 </div>
         """
@@ -274,6 +415,31 @@ def download_db():
     except Exception as e:
         return f"Error downloading database: {str(e)}", 500
 
+# ================= GET DAILY SUGGESTIONS =================
+@app.route('/get-suggestions')
+def get_suggestions():
+    if 'user' not in session:
+        return jsonify({"error": "Please login"}), 401
+    
+    current_hour = datetime.datetime.now().hour
+    
+    if 5 <= current_hour < 12:
+        time_period = "morning"
+    elif 12 <= current_hour < 17:
+        time_period = "afternoon"
+    elif 17 <= current_hour < 21:
+        time_period = "evening"
+    else:
+        time_period = "weekly"
+    
+    suggestions = DAILY_SUGGESTIONS[time_period]
+    random_suggestions = random.sample(suggestions, min(3, len(suggestions)))
+    
+    return jsonify({
+        "time_period": time_period,
+        "suggestions": random_suggestions
+    })
+
 # ================= EMAIL WARNING FUNCTION =================
 def send_warning_email(email, username, expense, budget_limit):
     print("=" * 60)
@@ -289,6 +455,27 @@ def send_warning_email(email, username, expense, budget_limit):
         return False, "No email address found"
     
     try:
+        tips = [
+            "🌅 Start your day with a budget plan",
+            "☕ Make coffee at home - save ₹600/month",
+            "🍱 Pack lunch - save ₹1500/month",
+            "🚶 Walk short distances - save fuel",
+            "💡 Turn off lights when not needed",
+            "📱 Check your subscriptions monthly",
+            "🛒 Make a shopping list and stick to it",
+            "🏠 Cook dinner at home - save ₹2000/month"
+        ]
+        random_tips = random.sample(tips, min(3, len(tips)))
+        tips_text = "\n".join([f"• {tip}" for tip in random_tips])
+        
+        fun_facts = [
+            "💡 The average person spends ₹5000 on unnecessary items every month!",
+            "💡 Saving ₹100 daily = ₹36,500 saved in a year!",
+            "💡 70% of people don't track their expenses - you're already ahead!",
+            "💡 The 50-30-20 rule: 50% needs, 30% wants, 20% savings!"
+        ]
+        fun_fact = random.choice(fun_facts)
+        
         msg = Message(
             subject="🚨 Budget Alert - Budget Analysis System",
             sender=app.config['MAIL_USERNAME'],
@@ -306,16 +493,17 @@ Your budget limit has been exceeded.
 • Current Expense: ₹{expense}
 • Excess Amount: ₹{expense - budget_limit}
 
-💡 Suggestions to Reduce Spending:
-1. Track your daily expenses
-2. Avoid unnecessary shopping
-3. Cook at home instead of ordering
-4. Use public transport
-5. Cancel unused subscriptions
+💡 Smart Suggestions for You:
+{tips_text}
 
-Stay on track! 💰
+{fun_fact}
 
-- Budget Analysis System
+🎯 Daily Motivation:
+"Small savings today become big investments tomorrow. You can do this!"
+
+💰 Challenge: Can you reduce your spending by 10% this month?
+
+- Budget Analysis System ❤️
         """
         print("📧 Sending email to:", email)
         mail.send(msg)
@@ -334,7 +522,15 @@ def test_email():
             sender=app.config['MAIL_USERNAME'],
             recipients=[app.config['MAIL_USERNAME']]
         )
-        msg.body = "✅ Test email from Budget Tracker!"
+        msg.body = """
+✅ Test email from Budget Tracker!
+
+Your email is working perfectly! 🎉
+
+Fun Fact: Did you know that tracking your expenses can save you up to 30% of your income?
+
+Keep saving! 💰
+        """
         mail.send(msg)
         return "✅ Test email sent! Check your inbox."
     except Exception as e:
@@ -672,15 +868,7 @@ def home():
     
     suggestions = []
     
-    smart_items = {
-        "idli": {"alternative": "Home-made Idli 🥣", "reason": "Home food usually costs less", "benefit": "Healthy breakfast + lower spending", "motivation": "Healthy mornings create healthy savings 🌞"},
-        "dosai": {"alternative": "Idli 🥣", "reason": "Less oil and lower cost", "benefit": "Healthy and saves money", "motivation": "Small savings create big results 💪"},
-        "chips": {"alternative": "Fruits 🍎", "reason": "Chips are processed snacks", "benefit": "Better nutrition + savings", "motivation": "Healthy snacks, healthy life 🌟"},
-        "petrol": {"alternative": "Public Transport 🚌", "reason": "Fuel costs increase over time", "benefit": "Reduce travel expenses", "motivation": "Travel smart 🌍"},
-        "tea": {"alternative": "Home-made Tea ☕", "reason": "Daily outside tea adds up", "benefit": "Reduce repeated expenses", "motivation": "₹20/day ≈ ₹600/month 💰"},
-        "coffee": {"alternative": "Milk/Home Coffee 🥛", "reason": "Outside coffee is expensive", "benefit": "Lower cost", "motivation": "Save little, gain more 🚀"},
-    }
-    
+    # ================= GENERATE SMART SUGGESTIONS =================
     for t in transactions:
         try:
             item = str(t[6]).lower() if len(t) > 6 else ""
@@ -690,8 +878,8 @@ def home():
         amount = float(t[3])
         date = t[7] if len(t) > 7 else t[6]
         
-        if item in smart_items:
-            data = smart_items[item]
+        if item in SMART_ITEMS:
+            data = SMART_ITEMS[item]
             save_money = int(amount * 0.20)
             
             msg = f"""
@@ -706,12 +894,29 @@ def home():
 """
             suggestions.append(msg)
     
+    # Add daily suggestions if no specific items found
     if not suggestions:
-        suggestions.append("✅ Spending looks balanced. Keep saving! 💪")
+        daily_tips = [
+            "✅ Spending looks balanced. Keep saving! 💪",
+            "🌟 Remember: Every rupee saved is a rupee earned!",
+            "💡 Track every expense - knowledge is power!",
+            "🎯 Set a monthly budget and stick to it!",
+            "🍱 Cook at home - it's healthier and cheaper!",
+            "🚶 Walk or cycle for short distances - save fuel!",
+            "📊 Review your expenses weekly - find waste!",
+            "💳 Use cash instead of cards - feel the money leaving!",
+            "🌅 Wake up early and plan your day!",
+            "☕ Make coffee at home - save ₹600/month!",
+            "📝 Make a shopping list before going out!",
+            "🏋️ Exercise at home - save gym membership!",
+            "📺 Watch free content - cancel unused OTT!",
+            "🌿 Grow small plants - save on vegetables!",
+            "💡 Use LED bulbs - save electricity bill!"
+        ]
+        suggestions = random.sample(daily_tips, min(3, len(daily_tips)))
     
     # ================= CHART GENERATION =================
     try:
-        # Delete old chart files first
         chart_files = ['chart.png', 'monthly_chart.png', 'category_chart.png']
         for file in chart_files:
             file_path = os.path.join(STATIC_DIR, file)
@@ -719,7 +924,6 @@ def home():
                 os.remove(file_path)
                 print(f"🗑️ Deleted old chart: {file}")
         
-        # Income vs Expense Pie Chart
         chart_path = os.path.join(STATIC_DIR, "chart.png")
         plt.figure(figsize=(8, 6))
         if income > 0 or expense > 0:
@@ -736,7 +940,6 @@ def home():
         plt.close()
         print(f"✅ Pie chart saved: {chart_path}")
         
-        # Monthly Expense Bar Chart
         monthly_chart_path = os.path.join(STATIC_DIR, "monthly_chart.png")
         plt.figure(figsize=(10, 6))
         if monthly_data:
@@ -761,7 +964,6 @@ def home():
         plt.close()
         print(f"✅ Monthly chart saved: {monthly_chart_path}")
         
-        # Category Distribution Pie Chart
         category_chart_path = os.path.join(STATIC_DIR, "category_chart.png")
         plt.figure(figsize=(8, 8))
         if category_data:
@@ -792,6 +994,8 @@ def home():
     
     conn.close()
     
+    chart_timestamp = int(time.time())
+    
     return render_template(
         "index.html",
         username=username,
@@ -816,14 +1020,15 @@ def home():
         prediction_msg=prediction_msg,
         saving_goal=saving_goal,
         category_data=category_data,
-        email_status=email_status
+        email_status=email_status,
+        chart_timestamp=chart_timestamp
     )
 
-# ================= CHATBOT =================
+# ================= AI CHATBOT WITH FUN & ENTERTAINMENT =================
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
     msg = request.form['message'].lower().strip()
-    username = session['user']
+    username = session.get('user') if 'user' in session else "User"
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -853,21 +1058,184 @@ def chatbot():
     else:
         top_category = "No expenses"
     
+    # ================= FINANCIAL QUESTIONS =================
     if "total income" in msg:
-        reply = f"💰 Your total income is ₹{total_income}"
+        reply = f"💰 Your total income is ₹{total_income}\n\n💡 Tip: Try to save at least 20% of this amount!"
+    
     elif "total expense" in msg:
-        reply = f"💸 Your total expense is ₹{total_expense}"
+        reply = f"💸 Your total expense is ₹{total_expense}\n\n💡 Tip: Review your expenses to find where you can cut back!"
+    
     elif "balance" in msg:
-        reply = f"🏦 Your current balance is ₹{balance}"
+        reply = f"🏦 Your current balance is ₹{balance}\n\n{'🎉 Great job maintaining a positive balance!' if balance > 0 else '⚠️ You need to reduce your expenses!'}"
+    
     elif "budget" in msg:
         remaining = budget_limit - total_expense
-        reply = f"📊 Remaining budget: ₹{remaining}"
+        reply = f"📊 Remaining budget: ₹{remaining}\n\n{'✅ You\'re within your budget limit!' if remaining > 0 else '🚨 You\'ve exceeded your budget limit!'}"
+    
     elif "top category" in msg or "highest expense" in msg:
-        reply = f"📈 Highest spending category: {top_category}"
-    elif "hi" in msg or "hello" in msg or "hey" in msg:
-        reply = f"👋 Hello {username}! Welcome back."
+        reply = f"📈 Highest spending category: {top_category}\n\n💡 Try to reduce spending in this category!"
+    
+    # ================= FUN & ENTERTAINMENT =================
+    elif "joke" in msg or "funny" in msg:
+        jokes = [
+            "Why did the budget go to therapy? It had too many expenses! 😂",
+            "What did the wallet say to the credit card? 'You're always taking me for granted!' 💳😄",
+            "How much does a budget weigh? Just a few cents! 🤣",
+            "Why don't budgets tell secrets? Because they're always spent! 😅",
+            "What's a budget's favorite dance? The money-saving shuffle! 💃😂",
+            "Why did the financial advisor break up with the budget? It was too controlling! 😂",
+            "What do you call a budget that's always right? A prophet (profit)! 🤣"
+        ]
+        reply = random.choice(jokes) + "\n\n😂 Hope that made you laugh! Want another joke? Just say 'tell me a joke'!"
+    
+    elif "motivation" in msg or "motivate" in msg or "inspire" in msg:
+        motivational = [
+            "💪 Remember: Every rupee saved is a rupee earned!",
+            "🌟 Small savings today = Big investments tomorrow!",
+            "🚀 You're doing great! Keep tracking your expenses!",
+            "🎯 Set a goal and watch your savings grow!",
+            "💰 Rich people save first, spend later. Be like them!",
+            "🔥 The best time to start saving was yesterday. The next best time is NOW!",
+            "💪 Your future self will thank you for saving today!",
+            "🌟 You are stronger than your excuses!"
+        ]
+        reply = random.choice(motivational) + "\n\n🔥 You got this! Keep going!"
+    
+    elif "fun fact" in msg or "fact" in msg:
+        facts = [
+            "💡 The average person spends ₹5000 on unnecessary items every month!",
+            "💡 Saving ₹100 daily = ₹36,500 saved in a year!",
+            "💡 70% of people don't track their expenses - you're already ahead!",
+            "💡 The 50-30-20 rule: 50% needs, 30% wants, 20% savings!",
+            "💡 India's savings rate is 30% of GDP - you can do better!",
+            "💡 The average Indian spends ₹1500 on tea/coffee per month!",
+            "💡 Cooking at home can save you ₹10,000 per month!"
+        ]
+        reply = random.choice(facts) + "\n\n🧠 Knowledge is power! Want more facts? Ask 'tell me a fact'!"
+    
+    elif "advice" in msg or "tip" in msg:
+        advice = [
+            "📝 Track every expense - knowledge is power!",
+            "🎯 Set a monthly budget and stick to it!",
+            "🍱 Cook at home - it's healthier and cheaper!",
+            "🚶 Walk or cycle for short distances - save fuel!",
+            "📊 Review your expenses weekly - find waste!",
+            "💳 Use cash instead of cards - feel the money leaving!",
+            "🌅 Wake up early and plan your day for better savings!",
+            "☕ Make coffee at home - save ₹600/month!",
+            "📝 Make a shopping list before going out - avoid impulse buying!",
+            "🏋️ Exercise at home - save gym membership fees!",
+            "📺 Watch free content - cancel unused OTT subscriptions!"
+        ]
+        reply = random.choice(advice) + "\n\n💡 Try implementing this today!"
+    
+    elif "movie" in msg or "entertainment" in msg or "watch" in msg:
+        movies = [
+            "🎬 Watch 'The Pursuit of Happyness' - it's about never giving up!",
+            "🎬 Watch 'Slumdog Millionaire' - a story of hope and money!",
+            "🎬 Watch 'The Wolf of Wall Street' - learn about money and excess!",
+            "🎬 Watch 'Wall Street' - the classic finance movie!",
+            "🎬 Watch 'The Big Short' - learn about the financial crisis!",
+            "🎬 Watch 'Moneyball' - data-driven success story!",
+            "🎬 Watch 'The Founder' - story of McDonald's success!",
+            "🎬 Watch 'Hidden Figures' - incredible true story of success!"
+        ]
+        reply = random.choice(movies) + "\n\n🍿 Happy watching! Let me know if you want more recommendations!"
+    
+    elif "book" in msg or "read" in msg:
+        books = [
+            "📚 'Rich Dad Poor Dad' by Robert Kiyosaki - the ultimate finance book!",
+            "📚 'Think and Grow Rich' by Napoleon Hill - classic success book!",
+            "📚 'The Intelligent Investor' by Benjamin Graham - for smart investing!",
+            "📚 'The Psychology of Money' by Morgan Housel - understand money mindset!",
+            "📚 'Atomic Habits' by James Clear - build saving habits!",
+            "📚 'The 5 AM Club' by Robin Sharma - master your mornings!",
+            "📚 'The Alchemist' by Paulo Coelho - follow your dreams!"
+        ]
+        reply = random.choice(books) + "\n\n📖 Happy reading! Want another book suggestion? Ask 'recommend a book'!"
+    
+    elif "challenge" in msg or "game" in msg:
+        challenges = [
+            "🎯 Challenge: Save ₹1000 this week by avoiding outside food!",
+            "🎯 Challenge: No online shopping for 7 days - save money and reduce waste!",
+            "🎯 Challenge: Track every expense for 30 days - knowledge is power!",
+            "🎯 Challenge: Cook all your meals at home for one week - save ₹2000!",
+            "🎯 Challenge: Walk to work/college for 5 days - save fuel and stay fit!",
+            "🎯 Challenge: Cancel 2 unused subscriptions today - save ₹500/month!"
+        ]
+        reply = random.choice(challenges) + "\n\n💪 Are you ready for the challenge? Say 'I accept' to commit!"
+    
+    elif "saving" in msg or "save" in msg:
+        saving_tips = [
+            "💰 Tip: Save ₹100/day = ₹36,500/year!",
+            "💰 Tip: Use the 50-30-20 rule: 50% needs, 30% wants, 20% savings!",
+            "💰 Tip: Automate your savings - set up auto-transfer to savings account!",
+            "💰 Tip: Save your daily change in a jar - it adds up fast!",
+            "💰 Tip: Reduce one expense category by 20% this month!",
+            "💰 Tip: Cook at home 5 days a week - save ₹5000/month!"
+        ]
+        reply = random.choice(saving_tips) + "\n\n🚀 Start saving today!"
+    
+    elif "hello" in msg or "hi" in msg or "hey" in msg:
+        greetings = [
+            f"👋 Hello {username}! Welcome back to Budget Tracker!",
+            f"🤖 Hey {username}! Ready to save some money today?",
+            f"💪 Hi {username}! Let's make your finances better!",
+            f"🌟 Welcome back {username}! How can I help you today?"
+        ]
+        reply = random.choice(greetings) + "\n\n💡 Try asking me: 'total income', 'total expense', 'joke', 'motivation', 'advice', or 'challenge'!"
+    
+    elif "how are you" in msg:
+        replies = [
+            "🤖 I'm great! Helping people save money makes me happy! 😊",
+            "💪 I'm fantastic! Just had a virtual coffee and I'm ready to help you save! ☕",
+            "🌟 I'm wonderful! Excited to help you achieve your financial goals! 💰"
+        ]
+        reply = random.choice(replies)
+    
+    elif "thank" in msg or "thanks" in msg:
+        replies = [
+            "😊 You're welcome! Happy to help you save money!",
+            "💪 Anytime! Let's achieve your financial goals together!",
+            "🌟 My pleasure! Keep tracking your expenses!"
+        ]
+        reply = random.choice(replies)
+    
+    elif "your name" in msg or "who are you" in msg:
+        reply = "🤖 I'm Budget AI Assistant - your personal financial advisor and savings coach! I'm here to help you track expenses, save money, and achieve your financial goals. Plus, I know a few good jokes! 😄"
+    
+    elif "fun" in msg or "entertain" in msg:
+        fun_responses = [
+            "🎉 Let's have some fun with your finances!",
+            "😄 Money doesn't have to be boring!",
+            "🎮 Think of saving money as a game - try to beat your high score!",
+            "💰 Saving money can be fun - celebrate every small win!"
+        ]
+        reply = random.choice(fun_responses) + "\n\n🎯 Try asking for a 'joke' or 'motivation'!"
+    
+    # ================= RANDOM RESPONSE FOR UNKNOWN =================
     else:
-        reply = "🤖 Ask me about your income, expense, balance, or budget!"
+        random_responses = [
+            f"🤔 Hmm, I didn't quite get that, {username}. Try asking about:",
+            "💡 I can help with questions like:",
+            "🤖 I'm not sure about that. Here are some things I can answer:"
+        ]
+        
+        suggestions_list = [
+            "💰 'total income' - to see your income",
+            "💸 'total expense' - to see your expenses",
+            "🏦 'balance' - to check your balance",
+            "📊 'budget' - to check remaining budget",
+            "📈 'top category' - to see highest spending",
+            "😂 'joke' - for a good laugh",
+            "💪 'motivation' - for daily inspiration",
+            "📝 'advice' - for saving tips",
+            "🎯 'challenge' - for saving challenges",
+            "🎬 'movie' - for entertainment recommendations",
+            "📚 'book' - for book recommendations"
+        ]
+        
+        reply = random.choice(random_responses) + "\n\n" + "\n".join(random.sample(suggestions_list, 5))
     
     return jsonify({"reply": reply})
 
@@ -953,6 +1321,9 @@ if __name__ == "__main__":
     print(f"📁 Database Location: {DATABASE_PATH}")
     print(f"📁 Static Files: {STATIC_DIR}")
     print(f"📁 Running on Render: {IS_RENDER}")
+    print("=" * 60)
+    print("📧 Email: vishnugowtham392@gmail.com")
+    print("🔑 App Password: brdxtgyqobiwjeel")
     print("=" * 60)
     print("🌐 Server starting at: http://127.0.0.1:5000")
     print("=" * 60)
