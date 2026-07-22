@@ -295,13 +295,12 @@ def clear_cache():
                 os.remove(file_path)
                 deleted.append(file)
         
-        # Flash message instead of returning text
         if deleted:
             flash(f"✅ Cleared cache for: {', '.join(deleted)}")
         else:
             flash("✅ No cached charts found")
         
-        return redirect('/')  # Redirect back to dashboard
+        return redirect('/')
         
     except Exception as e:
         flash(f"❌ Error clearing cache: {str(e)}")
