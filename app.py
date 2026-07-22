@@ -17,6 +17,7 @@ from reportlab.lib.pagesizes import A4
 from collections import Counter, defaultdict
 import json
 import datetime
+import shutil
 
 # ================= LOGGING =================
 logging.basicConfig(level=logging.DEBUG)
@@ -37,12 +38,12 @@ app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
 mail = Mail(app)
 
-# ================= DATABASE & FILE PATHS - DETECTS RENDER VS LOCAL =================
+# ================= DATABASE & FILE PATHS - AUTO DETECT =================
 # Check if running on Render
 IS_RENDER = os.environ.get('RENDER') == 'true'
 
 if IS_RENDER:
-    # On Render - use /tmp (writable)
+    # On Render - use /tmp (writable directory)
     BASE_DIR = "/tmp"
     print("🔧 Running on Render - using /tmp for storage")
 else:
@@ -50,8 +51,8 @@ else:
     BASE_DIR = r"E:\Budget Tracker"
     print("🔧 Running locally - using E:\Budget Tracker")
 
-# Database file path
-DATABASE_PATH = os.path.join(BASE_DIR, "budget.db")  # Note: No "database" folder on Render
+# Database file path - DIRECTLY in BASE_DIR (no subfolder on Render)
+DATABASE_PATH = os.path.join(BASE_DIR, "budget.db")
 
 # Static folders
 if IS_RENDER:
@@ -79,6 +80,8 @@ print(f"✅ Running on Render: {IS_RENDER}")
 # ================= DATABASE FUNCTIONS =================
 def get_db_connection():
     try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(DATABASE_PATH) if os.path.dirname(DATABASE_PATH) else '.', exist_ok=True)
         conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
         return conn
@@ -121,6 +124,16 @@ def init_db():
         test_conn.close()
         print("✅ Database is writable")
         
+        # Check if database has data
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM transactions")
+        trans_count = cursor.fetchone()[0]
+        conn.close()
+        print(f"📊 Existing data: {user_count} users, {trans_count} transactions")
+        
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         raise
@@ -143,10 +156,50 @@ def handle_exception(e):
     print(traceback.format_exc())
     return f"Error: {error_msg}", 500
 
+# ================= CLEAR CACHE ROUTE =================
+@app.route('/clear-cache')
+def clear_cache():
+    """Clear all chart cache and static files"""
+    if 'user' not in session:
+        return redirect('/login')
+    
+    try:
+        # Delete all chart images
+        chart_files = ['chart.png', 'monthly_chart.png', 'category_chart.png']
+        deleted = []
+        for file in chart_files:
+            file_path = os.path.join(STATIC_DIR, file)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                deleted.append(file)
+        
+        if deleted:
+            return f"✅ Cleared cache for: {', '.join(deleted)}"
+        else:
+            return "✅ No cached charts found"
+    except Exception as e:
+        return f"❌ Error clearing cache: {str(e)}"
+
+# ================= RESET DATABASE ROUTE =================
+@app.route('/reset-db')
+def reset_db():
+    """Reset database (for testing only)"""
+    if 'user' not in session:
+        return redirect('/login')
+    
+    try:
+        if os.path.exists(DATABASE_PATH):
+            os.remove(DATABASE_PATH)
+            print(f"✅ Database deleted: {DATABASE_PATH}")
+        init_db()
+        return "✅ Database reset successfully!"
+    except Exception as e:
+        return f"❌ Error resetting database: {str(e)}"
+
 # ================= SHOW DATABASE LOCATION =================
 @app.route('/show-db-location')
 def show_db_location():
-    """Show where database is stored - perfect for staff demonstration"""
+    """Show where database is stored"""
     if 'user' not in session:
         return redirect('/login')
     
@@ -170,76 +223,52 @@ def show_db_location():
         db_size = os.path.getsize(DATABASE_PATH) if os.path.exists(DATABASE_PATH) else 0
         db_size_mb = db_size / (1024 * 1024)
         
-        # Get all transactions for display
-        cursor.execute("SELECT * FROM transactions ORDER BY id DESC LIMIT 20")
-        recent_transactions = cursor.fetchall()
-        
         html = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Database Location - Budget Tracker</title>
+            <title>Database Location</title>
             <style>
-                body {{ font-family: 'Segoe UI', Arial; padding: 20px; background: #f4f6f9; }}
-                .card {{ background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                body {{ font-family: Arial; padding: 20px; background: #f4f6f9; }}
+                .card {{ background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 10px lightgray; }}
                 h1 {{ color: #28a745; }}
-                .db-info {{ background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #28a745; }}
-                .db-path {{ background: #263238; color: #fff; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 14px; word-break: break-all; }}
-                .file-info {{ background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 10px 0; }}
+                .db-path {{ background: #263238; color: #fff; padding: 15px; border-radius: 8px; font-family: monospace; }}
+                .stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 15px 0; }}
+                .stat-box {{ background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }}
+                .stat-number {{ font-size: 24px; font-weight: bold; color: #28a745; }}
+                .back {{ display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }}
                 table {{ width: 100%; border-collapse: collapse; }}
                 th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }}
                 th {{ background: #28a745; color: white; }}
-                tr:hover {{ background-color: #f5f5f5; }}
-                .back {{ display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 10px 5px; }}
-                .back:hover {{ background: #218838; }}
-                .download-btn {{ background: #17a2b8; }}
-                .download-btn:hover {{ background: #138496; }}
-                .stats {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 15px 0; }}
-                .stat-box {{ background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #dee2e6; }}
-                .stat-number {{ font-size: 24px; font-weight: bold; color: #28a745; }}
-                .stat-label {{ color: #6c757d; font-size: 14px; }}
-                .folder-structure {{ background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; }}
             </style>
         </head>
         <body>
             <div class="card">
                 <h1>🗄️ Database Storage Location</h1>
                 <a href="/" class="back">⬅ Back to Dashboard</a>
-                <a href="/download-db" class="back download-btn">⬇️ Download Database</a>
+                <a href="/clear-cache" class="back" style="background:#ff9800;">🔄 Clear Chart Cache</a>
                 
-                <div class="db-info">
-                    <h3>📂 Database File Location:</h3>
-                    <div class="db-path">{DATABASE_PATH}</div>
-                    <div class="file-info">
-                        <strong>✅ File exists:</strong> {os.path.exists(DATABASE_PATH)} &nbsp;|&nbsp;
-                        <strong>📦 File size:</strong> {db_size_mb:.2f} MB &nbsp;|&nbsp;
-                        <strong>🔄 Last modified:</strong> {datetime.datetime.fromtimestamp(os.path.getmtime(DATABASE_PATH)).strftime('%Y-%m-%d %H:%M:%S') if os.path.exists(DATABASE_PATH) else 'N/A'} &nbsp;|&nbsp;
-                        <strong>✏️ Writable:</strong> {os.access(DATABASE_PATH, os.W_OK) if os.path.exists(DATABASE_PATH) else 'N/A'}
-                    </div>
-                </div>
-                
-                <div class="folder-structure">
-                    <strong>📁 Project Folder Structure:</strong><br>
-                    {'/tmp/' if IS_RENDER else 'E:\\Budget Tracker\\'}<br>
-                    ├── 📄 budget.db  ← Your data is stored here!<br>
-                    ├── 📁 static\<br>
-                    │   └── 📁 profiles\<br>
-                    └── 📁 uploads\<br>
-                </div>
+                <div class="db-path">📍 {DATABASE_PATH}</div>
                 
                 <div class="stats">
                     <div class="stat-box">
                         <div class="stat-number">{len(users)}</div>
-                        <div class="stat-label">Total Users</div>
+                        <div>Total Users</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-number">{total_transactions}</div>
-                        <div class="stat-label">Total Transactions</div>
+                        <div>Total Transactions</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-number">{user_transactions}</div>
-                        <div class="stat-label">Your Transactions</div>
+                        <div>Your Transactions</div>
                     </div>
+                </div>
+                
+                <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                    <strong>📁 Running on:</strong> {'Render' if IS_RENDER else 'Local'}<br>
+                    <strong>📦 Database size:</strong> {db_size_mb:.2f} MB<br>
+                    <strong>✅ File exists:</strong> {os.path.exists(DATABASE_PATH)}
                 </div>
         """
         
@@ -247,26 +276,10 @@ def show_db_location():
             html += """
                 <h3>👤 Registered Users:</h3>
                 <table>
-                    <tr><th>ID</th><th>Username</th><th>Email</th><th>Photo</th></tr>
+                    <tr><th>ID</th><th>Username</th><th>Email</th></tr>
             """
             for user in users:
-                html += f"<tr><td>{user[0]}</td><td>{user[1]}</td><td>{user[2]}</td><td>{user[3]}</td></tr>"
-            html += "</table>"
-        else:
-            html += """
-                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                    ⚠️ No users found in database. Sign up to create your first account!
-                </div>
-            """
-        
-        if len(recent_transactions) > 0:
-            html += """
-                <h3>📋 Recent Transactions (Last 20):</h3>
-                <table>
-                    <tr><th>ID</th><th>Title</th><th>Amount</th><th>Type</th><th>Category</th><th>Item</th><th>Date</th><th>User</th></tr>
-            """
-            for t in recent_transactions:
-                html += f"<tr><td>{t[0]}</td><td>{t[2]}</td><td>₹{t[3]}</td><td>{t[4]}</td><td>{t[5]}</td><td>{t[6]}</td><td>{t[7]}</td><td>{t[1]}</td></tr>"
+                html += f"<tr><td>{user[0]}</td><td>{user[1]}</td><td>{user[2]}</td></tr>"
             html += "</table>"
         
         html += """
@@ -284,14 +297,14 @@ def show_db_location():
 # ================= DOWNLOAD DATABASE =================
 @app.route('/download-db')
 def download_db():
-    """Download the database file for demonstration"""
+    """Download the database file"""
     if 'user' not in session:
         return redirect('/login')
     
     try:
         if os.path.exists(DATABASE_PATH):
             return send_from_directory(
-                os.path.dirname(DATABASE_PATH),
+                os.path.dirname(DATABASE_PATH) or '.',
                 os.path.basename(DATABASE_PATH),
                 as_attachment=True,
                 download_name='budget.db'
@@ -394,7 +407,7 @@ def signup():
             conn.commit()
             conn.close()
             
-            print(f"✅ New user created: {username} at {datetime.datetime.now()}")
+            print(f"✅ New user created: {username}")
             print(f"✅ Data saved to: {DATABASE_PATH}")
             flash("✅ Account created successfully! Please login.")
             return redirect('/login')
@@ -424,8 +437,7 @@ def login():
                 conn.close()
                 
                 if user:
-                    # user[1] = username, user[2] = email, user[3] = password
-                    if user[3] == password:
+                    if user[3] == password:  # password is at index 3
                         session['user'] = username
                         print(f"✅ User logged in: {username}")
                         return redirect('/')
@@ -503,19 +515,12 @@ def profile():
         flash("✅ Profile updated successfully!")
         return redirect('/profile')
     
-    # Fetch user data - CORRECT ORDER
-    # Database columns: id(0), username(1), email(2), password(3), photo(4)
     cur.execute("SELECT * FROM users WHERE username=?", (username,))
     user = cur.fetchone()
     conn.close()
     
-    # Debug to verify data is correct
     if user:
         print(f"👤 User Data - ID: {user[0]}, Username: {user[1]}, Email: {user[2]}, Password: {user[3]}, Photo: {user[4]}")
-        print(f"📧 Email from database: '{user[2]}'")
-        print(f"🔑 Password from database: '{user[3]}'")
-    else:
-        print("❌ User not found!")
     
     return render_template("profile.html", user=user)
 
@@ -746,6 +751,14 @@ def home():
     
     # ================= CHART GENERATION =================
     try:
+        # Delete old chart files first (force refresh)
+        chart_files = ['chart.png', 'monthly_chart.png', 'category_chart.png']
+        for file in chart_files:
+            file_path = os.path.join(STATIC_DIR, file)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"🗑️ Deleted old chart: {file}")
+        
         # Income vs Expense Pie Chart
         chart_path = os.path.join(STATIC_DIR, "chart.png")
         plt.figure(figsize=(8, 6))
@@ -775,7 +788,6 @@ def home():
             plt.ylabel("Expense (₹)", fontsize=12)
             plt.xticks(rotation=30, ha='right')
             
-            # Add value labels on bars
             for bar, value in zip(bars, values):
                 height = bar.get_height()
                 plt.text(bar.get_x() + bar.get_width()/2., height,
@@ -985,7 +997,6 @@ if __name__ == "__main__":
     print(f"📁 Running on Render: {IS_RENDER}")
     print("=" * 60)
     print("🌐 Server starting at: http://127.0.0.1:5000")
-    print("🔑 Login to access your budget tracker")
     print("=" * 60)
     
     port = int(os.environ.get("PORT", 5000))
