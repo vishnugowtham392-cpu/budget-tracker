@@ -663,6 +663,75 @@
                 text-align: center;
             }
         }
+
+        /* ================= FLASH MESSAGE STYLES ================= */
+        .flash-message {
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+            animation: slideDown 0.5s ease;
+        }
+
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .flash-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .dark .flash-success {
+            background: #1e3a2a;
+            color: #8fdf9f;
+            border-color: #2a5a3a;
+        }
+
+        .dark .flash-error {
+            background: #3a1e1e;
+            color: #ff8a8a;
+            border-color: #5a2a2a;
+        }
+
+        .dark .flash-info {
+            background: #1a2a3a;
+            color: #8ac4ff;
+            border-color: #2a3a5a;
+        }
+
+        .dark .flash-warning {
+            background: #3a3a1a;
+            color: #ffd700;
+            border-color: #5a5a2a;
+        }
     </style>
 </head>
 
@@ -676,6 +745,17 @@
     </div>
 
     <div class="container">
+
+        <!-- ================= FLASH MESSAGES ================= -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash-message flash-success">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
         <!-- ================= WELCOME WITH PROFILE PHOTO ================= -->
         <div class="card">
@@ -1061,7 +1141,7 @@
             </div>
         </div>
 
-        <!-- ================= BUTTONS - REMOVED UNSAFE DATABASE LINKS ================= -->
+        <!-- ================= BUTTONS - SAFE LINKS ONLY ================= -->
         <div class="card center">
             <a href="/profile" style="text-decoration: none; color: #28a745; margin: 0 10px;">👤 Profile Settings</a> |
             <a href="/download" style="text-decoration: none; color: #28a745; margin: 0 10px;">⬇ Download CSV</a> |

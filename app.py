@@ -280,7 +280,7 @@ def handle_exception(e):
     print(traceback.format_exc())
     return f"Error: {error_msg}", 500
 
-# ================= CLEAR CACHE ROUTE =================
+# ================= CLEAR CACHE ROUTE - FIXED =================
 @app.route('/clear-cache')
 def clear_cache():
     if 'user' not in session:
@@ -295,12 +295,17 @@ def clear_cache():
                 os.remove(file_path)
                 deleted.append(file)
         
+        # Flash message instead of returning text
         if deleted:
-            return f"✅ Cleared cache for: {', '.join(deleted)}"
+            flash(f"✅ Cleared cache for: {', '.join(deleted)}")
         else:
-            return "✅ No cached charts found"
+            flash("✅ No cached charts found")
+        
+        return redirect('/')  # Redirect back to dashboard
+        
     except Exception as e:
-        return f"❌ Error clearing cache: {str(e)}"
+        flash(f"❌ Error clearing cache: {str(e)}")
+        return redirect('/')
 
 # ================= GET DAILY SUGGESTIONS =================
 @app.route('/get-suggestions')
@@ -911,7 +916,7 @@ def home():
         chart_timestamp=chart_timestamp
     )
 
-# ================= AI CHATBOT WITH FUN & ENTERTAINMENT - FIXED =================
+# ================= AI CHATBOT WITH FUN & ENTERTAINMENT =================
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
     msg = request.form['message'].lower().strip()
