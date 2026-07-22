@@ -37,30 +37,29 @@ app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
 mail = Mail(app)
 
-# ================= DATABASE & FILE PATHS =================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# ================= DATABASE & FILE PATHS - USING YOUR EXISTING FOLDERS =================
+BASE_DIR = r"E:\Budget Tracker"
 
-# --- Use LOCAL PATH for development, /tmp for Render ---
-if os.environ.get('RENDER'):
-    print("🔧 Running on Render - using /tmp for storage")
-    DATA_DIR = "/tmp"
-else:
-    print("🔧 Running locally - using E:\Budget Tracker\database")
-    # Your specified local path
-    DATA_DIR = r"E:\Budget Tracker\database"
-    os.makedirs(DATA_DIR, exist_ok=True)
+# Database file path
+DATABASE_PATH = os.path.join(BASE_DIR, "database", "budget.db")
 
-# Define all paths using DATA_DIR
-DATABASE_PATH = os.path.join(DATA_DIR, "budget.db")
-STATIC_DIR = os.path.join(DATA_DIR, "static")
-UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+# Static folders (already exist in your path)
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
 
-# Create all necessary directories
-for folder in [STATIC_DIR, UPLOAD_DIR, PROFILES_DIR]:
-    os.makedirs(folder, exist_ok=True)
+# Create folders if they don't exist (just in case)
+os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
+os.makedirs(STATIC_DIR, exist_ok=True)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(PROFILES_DIR, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_DIR
+
+print(f"✅ Database Location: {DATABASE_PATH}")
+print(f"✅ Static Files: {STATIC_DIR}")
+print(f"✅ Uploads: {UPLOAD_DIR}")
+print(f"✅ Profiles: {PROFILES_DIR}")
 
 # ================= DATABASE FUNCTIONS =================
 def get_db_connection():
@@ -128,6 +127,167 @@ def handle_exception(e):
     print(f"❌ Error: {error_msg}")
     print(traceback.format_exc())
     return f"Error: {error_msg}", 500
+
+# ================= SHOW DATABASE LOCATION =================
+@app.route('/show-db-location')
+def show_db_location():
+    """Show where database is stored - perfect for staff demonstration"""
+    if 'user' not in session:
+        return redirect('/login')
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all users
+        cursor.execute("SELECT id, username, email, photo FROM users")
+        users = cursor.fetchall()
+        
+        # Get all transactions
+        cursor.execute("SELECT COUNT(*) FROM transactions")
+        total_transactions = cursor.fetchone()[0]
+        
+        # Get current user's transactions
+        cursor.execute("SELECT COUNT(*) FROM transactions WHERE username=?", (session['user'],))
+        user_transactions = cursor.fetchone()[0]
+        
+        # Get database file size
+        db_size = os.path.getsize(DATABASE_PATH) if os.path.exists(DATABASE_PATH) else 0
+        db_size_mb = db_size / (1024 * 1024)
+        
+        # Get all transactions for display
+        cursor.execute("SELECT * FROM transactions ORDER BY id DESC LIMIT 20")
+        recent_transactions = cursor.fetchall()
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Database Location - Budget Tracker</title>
+            <style>
+                body {{ font-family: 'Segoe UI', Arial; padding: 20px; background: #f4f6f9; }}
+                .card {{ background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                h1 {{ color: #28a745; }}
+                .db-info {{ background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #28a745; }}
+                .db-path {{ background: #263238; color: #fff; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 14px; word-break: break-all; }}
+                .file-info {{ background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 10px 0; }}
+                table {{ width: 100%; border-collapse: collapse; }}
+                th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }}
+                th {{ background: #28a745; color: white; }}
+                tr:hover {{ background-color: #f5f5f5; }}
+                .back {{ display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 10px 5px; }}
+                .back:hover {{ background: #218838; }}
+                .download-btn {{ background: #17a2b8; }}
+                .download-btn:hover {{ background: #138496; }}
+                .stats {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 15px 0; }}
+                .stat-box {{ background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #dee2e6; }}
+                .stat-number {{ font-size: 24px; font-weight: bold; color: #28a745; }}
+                .stat-label {{ color: #6c757d; font-size: 14px; }}
+                .success {{ color: #28a745; }}
+                .folder-structure {{ background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>🗄️ Database Storage Location</h1>
+                <a href="/" class="back">⬅ Back to Dashboard</a>
+                <a href="/download-db" class="back download-btn">⬇️ Download Database</a>
+                
+                <div class="db-info">
+                    <h3>📂 Database File Location:</h3>
+                    <div class="db-path">{DATABASE_PATH}</div>
+                    <div class="file-info">
+                        <strong>✅ File exists:</strong> {os.path.exists(DATABASE_PATH)} &nbsp;|&nbsp;
+                        <strong>📦 File size:</strong> {db_size_mb:.2f} MB &nbsp;|&nbsp;
+                        <strong>🔄 Last modified:</strong> {datetime.datetime.fromtimestamp(os.path.getmtime(DATABASE_PATH)).strftime('%Y-%m-%d %H:%M:%S') if os.path.exists(DATABASE_PATH) else 'N/A'} &nbsp;|&nbsp;
+                        <strong>✏️ Writable:</strong> {os.access(DATABASE_PATH, os.W_OK) if os.path.exists(DATABASE_PATH) else 'N/A'}
+                    </div>
+                </div>
+                
+                <div class="folder-structure">
+                    <strong>📁 Project Folder Structure:</strong><br>
+                    E:\Budget Tracker\<br>
+                    ├── 📁 database\<br>
+                    │   └── 📄 budget.db  ← Your data is stored here!<br>
+                    ├── 📁 static\<br>
+                    │   └── 📁 profiles\<br>
+                    ├── 📁 uploads\<br>
+                    └── 📄 app.py
+                </div>
+                
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-number">{len(users)}</div>
+                        <div class="stat-label">Total Users</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number">{total_transactions}</div>
+                        <div class="stat-label">Total Transactions</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number">{user_transactions}</div>
+                        <div class="stat-label">Your Transactions</div>
+                    </div>
+                </div>
+        """
+        
+        if len(users) > 0:
+            html += """
+                <h3>👤 Registered Users:</h3>
+                <table>
+                    <tr><th>ID</th><th>Username</th><th>Email</th><th>Photo</th></tr>
+            """
+            for user in users:
+                html += f"<tr><td>{user[0]}</td><td>{user[1]}</td><td>{user[2]}</td><td>{user[3]}</td></tr>"
+            html += "</table>"
+        else:
+            html += """
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                    ⚠️ No users found in database. Sign up to create your first account!
+                </div>
+            """
+        
+        if len(recent_transactions) > 0:
+            html += """
+                <h3>📋 Recent Transactions (Last 20):</h3>
+                <table>
+                    <tr><th>ID</th><th>Title</th><th>Amount</th><th>Type</th><th>Category</th><th>Item</th><th>Date</th><th>User</th></tr>
+            """
+            for t in recent_transactions:
+                html += f"<tr><td>{t[0]}</td><td>{t[2]}</td><td>₹{t[3]}</td><td>{t[4]}</td><td>{t[5]}</td><td>{t[6]}</td><td>{t[7]}</td><td>{t[1]}</td></tr>"
+            html += "</table>"
+        
+        html += """
+            </div>
+        </body>
+        </html>
+        """
+        
+        conn.close()
+        return html
+        
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# ================= DOWNLOAD DATABASE =================
+@app.route('/download-db')
+def download_db():
+    """Download the database file for demonstration"""
+    if 'user' not in session:
+        return redirect('/login')
+    
+    try:
+        if os.path.exists(DATABASE_PATH):
+            return send_from_directory(
+                os.path.dirname(DATABASE_PATH),
+                os.path.basename(DATABASE_PATH),
+                as_attachment=True,
+                download_name='budget.db'
+            )
+        else:
+            return "Database file not found!", 404
+    except Exception as e:
+        return f"Error downloading database: {str(e)}", 500
 
 # ================= EMAIL WARNING FUNCTION =================
 def send_warning_email(email, username, expense, budget_limit):
@@ -222,6 +382,8 @@ def signup():
             conn.commit()
             conn.close()
             
+            print(f"✅ New user created: {username} at {datetime.datetime.now()}")
+            print(f"✅ Data saved to: {DATABASE_PATH}")
             flash("✅ Account created successfully! Please login.")
             return redirect('/login')
         except Exception as e:
@@ -250,8 +412,10 @@ def login():
                 conn.close()
                 
                 if user:
-                    if user[3] == password:  # password is at index 3
+                    # user[1] = username, user[2] = email, user[3] = password
+                    if user[3] == password:
                         session['user'] = username
+                        print(f"✅ User logged in: {username}")
                         return redirect('/')
                     else:
                         error = "Invalid Password! Please try again."
@@ -266,6 +430,8 @@ def login():
 # ================= LOGOUT =================
 @app.route('/logout')
 def logout():
+    username = session.get('user')
+    print(f"👋 User logged out: {username}")
     session.clear()
     return redirect('/login')
 
@@ -283,7 +449,7 @@ def set_limit():
     flash(f"✅ Budget limit set to ₹{budget_limit}")
     return redirect('/')
 
-# ================= PROFILE SETTINGS =================
+# ================= PROFILE SETTINGS - FIXED =================
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
     if 'user' not in session:
@@ -298,23 +464,46 @@ def profile():
         email = request.form['email'].strip()
         password = request.form['password'].strip()
         
+        print(f"📝 Profile Update - Username: {new_username}, Email: {email}")
+        
         photo = request.files.get('photo')
         filename = None
         
         if photo and photo.filename != "":
             filename = secure_filename(photo.filename)
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            cur.execute("UPDATE users SET username=?, email=?, password=?, photo=? WHERE username=?", (new_username, email, password, filename, username))
+            photo.save(os.path.join(UPLOAD_DIR, filename))
+            cur.execute("""
+                UPDATE users 
+                SET username=?, email=?, password=?, photo=? 
+                WHERE username=?
+            """, (new_username, email, password, filename, username))
         else:
-            cur.execute("UPDATE users SET username=?, email=?, password=? WHERE username=?", (new_username, email, password, username))
+            cur.execute("""
+                UPDATE users 
+                SET username=?, email=?, password=? 
+                WHERE username=?
+            """, (new_username, email, password, username))
         
         conn.commit()
         session['user'] = new_username
         username = new_username
+        print(f"✅ Profile updated for: {username}")
+        flash("✅ Profile updated successfully!")
+        return redirect('/profile')
     
+    # Fetch user data - CORRECT ORDER
+    # Database columns: id(0), username(1), email(2), password(3), photo(4)
     cur.execute("SELECT * FROM users WHERE username=?", (username,))
     user = cur.fetchone()
     conn.close()
+    
+    # Debug to verify data is correct
+    if user:
+        print(f"👤 User Data - ID: {user[0]}, Username: {user[1]}, Email: {user[2]}, Password: {user[3]}, Photo: {user[4]}")
+        print(f"📧 Email from database: '{user[2]}'")  # Should show email, not password
+        print(f"🔑 Password from database: '{user[3]}'")  # Should show password
+    else:
+        print("❌ User not found!")
     
     return render_template("profile.html", user=user)
 
@@ -333,7 +522,7 @@ def upload():
         return "No file selected"
     
     filename = secure_filename(file.filename)
-    path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    path = os.path.join(UPLOAD_DIR, filename)
     file.save(path)
     
     conn = get_db_connection()
@@ -362,6 +551,7 @@ def upload():
     
     conn.commit()
     conn.close()
+    print(f"✅ CSV uploaded for user: {session['user']}")
     
     return redirect('/')
 
@@ -401,7 +591,8 @@ def home():
         
         cursor.execute("INSERT INTO transactions (username,title,amount,type,category,item,date) VALUES(?,?,?,?,?,?,?)", (username, title, amount, ttype, category, item, date))
         conn.commit()
-        print(f"✅ Transaction added: {title} - ₹{amount} - {ttype}")
+        print(f"✅ Transaction added: {title} - ₹{amount} - {ttype} for {username}")
+        print(f"✅ Data saved to: {DATABASE_PATH}")
     
     cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
     transactions = cursor.fetchall()
@@ -644,74 +835,6 @@ def home():
         email_status=email_status
     )
 
-# ================= SECURE DEBUG ROUTE (LOGIN REQUIRED) =================
-@app.route('/debug/db')
-def debug_db():
-    if 'user' not in session:
-        return redirect('/login')
-    
-    username = session['user']
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Show only current user's transactions
-    cursor.execute("SELECT * FROM transactions WHERE username=?", (username,))
-    transactions = cursor.fetchall()
-    
-    cursor.execute("SELECT id, username, email FROM users WHERE username=?", (username,))
-    user = cursor.fetchone()
-    conn.close()
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>My Data</title>
-        <style>
-            body {{ font-family: Arial; padding: 20px; background: #f4f6f9; }}
-            .card {{ background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 10px lightgray; }}
-            h1 {{ color: #28a745; }}
-            table {{ width: 100%; border-collapse: collapse; }}
-            th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }}
-            th {{ background: #28a745; color: white; }}
-            .back {{ display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; }}
-            .back:hover {{ background: #218838; }}
-            .warning {{ background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; }}
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h1>🔒 My Data</h1>
-            <a href="/" class="back">⬅ Back to Dashboard</a>
-            <div class="warning">
-                ⚠️ This page shows only your data. Access is restricted to logged-in users.
-            </div>
-        </div>
-        
-        <div class="card">
-            <h2>👤 My Profile</h2>
-            <p><strong>Username:</strong> {user[1] if user else 'N/A'}</p>
-            <p><strong>Email:</strong> {user[2] if user else 'N/A'}</p>
-        </div>
-        
-        <div class="card">
-            <h2>📋 My Transactions ({len(transactions)})</h2>
-            <table>
-                <tr><th>ID</th><th>Title</th><th>Amount</th><th>Type</th><th>Category</th><th>Item</th><th>Date</th></tr>
-    """
-    
-    for t in transactions:
-        html += f"<tr><td>{t[0]}</td><td>{t[2]}</td><td>₹{t[3]}</td><td>{t[4]}</td><td>{t[5]}</td><td>{t[6]}</td><td>{t[7]}</td></tr>"
-    
-    html += """
-            </table>
-        </div>
-    </body>
-    </html>
-    """
-    
-    return html
-
 # ================= CHATBOT =================
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
@@ -830,6 +953,7 @@ def delete(id):
     cursor.execute("DELETE FROM transactions WHERE id=?", (id,))
     conn.commit()
     conn.close()
+    print(f"✅ Transaction {id} deleted")
     return redirect('/')
 
 # ================= SERVE STATIC FILES =================
@@ -839,5 +963,18 @@ def serve_static(filename):
 
 # ================= RUN =================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    print("=" * 60)
+    print("🚀 BUDGET TRACKER APPLICATION")
+    print("=" * 60)
+    print(f"📁 Database Location: {DATABASE_PATH}")
+    print(f"📁 Static Files: {STATIC_DIR}")
+    print(f"📁 Uploads: {UPLOAD_DIR}")
+    print(f"📁 Profiles: {PROFILES_DIR}")
+    print("=" * 60)
+    print("🌐 Server starting at: http://127.0.0.1:5000")
+    print("🔑 Login to access your budget tracker")
+    print("📊 All data will be stored in: E:\Budget Tracker\database\budget.db")
+    print("=" * 60)
+    
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
