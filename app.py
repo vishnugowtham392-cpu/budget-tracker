@@ -37,22 +37,36 @@ app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
 mail = Mail(app)
 
-# ================= DATABASE & FILE PATHS - USING YOUR EXISTING FOLDERS =================
-BASE_DIR = r"E:\Budget Tracker"
+# ================= DATABASE & FILE PATHS - DETECTS RENDER VS LOCAL =================
+# Check if running on Render
+IS_RENDER = os.environ.get('RENDER') == 'true'
+
+if IS_RENDER:
+    # On Render - use /tmp (writable)
+    BASE_DIR = "/tmp"
+    print("🔧 Running on Render - using /tmp for storage")
+else:
+    # On Local - use your Windows path
+    BASE_DIR = r"E:\Budget Tracker"
+    print("🔧 Running locally - using E:\Budget Tracker")
 
 # Database file path
-DATABASE_PATH = os.path.join(BASE_DIR, "database", "budget.db")
+DATABASE_PATH = os.path.join(BASE_DIR, "budget.db")  # Note: No "database" folder on Render
 
-# Static folders (already exist in your path)
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
+# Static folders
+if IS_RENDER:
+    STATIC_DIR = os.path.join(BASE_DIR, "static")
+    UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+    PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
+else:
+    # Local paths with folders
+    STATIC_DIR = os.path.join(BASE_DIR, "static")
+    UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+    PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
 
-# Create folders if they don't exist (just in case)
-os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
-os.makedirs(STATIC_DIR, exist_ok=True)
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(PROFILES_DIR, exist_ok=True)
+# Create all necessary directories
+for folder in [STATIC_DIR, UPLOAD_DIR, PROFILES_DIR]:
+    os.makedirs(folder, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_DIR
 
@@ -60,6 +74,7 @@ print(f"✅ Database Location: {DATABASE_PATH}")
 print(f"✅ Static Files: {STATIC_DIR}")
 print(f"✅ Uploads: {UPLOAD_DIR}")
 print(f"✅ Profiles: {PROFILES_DIR}")
+print(f"✅ Running on Render: {IS_RENDER}")
 
 # ================= DATABASE FUNCTIONS =================
 def get_db_connection():
@@ -183,7 +198,6 @@ def show_db_location():
                 .stat-box {{ background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #dee2e6; }}
                 .stat-number {{ font-size: 24px; font-weight: bold; color: #28a745; }}
                 .stat-label {{ color: #6c757d; font-size: 14px; }}
-                .success {{ color: #28a745; }}
                 .folder-structure {{ background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; }}
             </style>
         </head>
@@ -206,13 +220,11 @@ def show_db_location():
                 
                 <div class="folder-structure">
                     <strong>📁 Project Folder Structure:</strong><br>
-                    E:\Budget Tracker\<br>
-                    ├── 📁 database\<br>
-                    │   └── 📄 budget.db  ← Your data is stored here!<br>
+                    {'/tmp/' if IS_RENDER else 'E:\\Budget Tracker\\'}<br>
+                    ├── 📄 budget.db  ← Your data is stored here!<br>
                     ├── 📁 static\<br>
                     │   └── 📁 profiles\<br>
-                    ├── 📁 uploads\<br>
-                    └── 📄 app.py
+                    └── 📁 uploads\<br>
                 </div>
                 
                 <div class="stats">
@@ -449,7 +461,7 @@ def set_limit():
     flash(f"✅ Budget limit set to ₹{budget_limit}")
     return redirect('/')
 
-# ================= PROFILE SETTINGS - FIXED =================
+# ================= PROFILE SETTINGS =================
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
     if 'user' not in session:
@@ -500,8 +512,8 @@ def profile():
     # Debug to verify data is correct
     if user:
         print(f"👤 User Data - ID: {user[0]}, Username: {user[1]}, Email: {user[2]}, Password: {user[3]}, Photo: {user[4]}")
-        print(f"📧 Email from database: '{user[2]}'")  # Should show email, not password
-        print(f"🔑 Password from database: '{user[3]}'")  # Should show password
+        print(f"📧 Email from database: '{user[2]}'")
+        print(f"🔑 Password from database: '{user[3]}'")
     else:
         print("❌ User not found!")
     
@@ -970,10 +982,10 @@ if __name__ == "__main__":
     print(f"📁 Static Files: {STATIC_DIR}")
     print(f"📁 Uploads: {UPLOAD_DIR}")
     print(f"📁 Profiles: {PROFILES_DIR}")
+    print(f"📁 Running on Render: {IS_RENDER}")
     print("=" * 60)
     print("🌐 Server starting at: http://127.0.0.1:5000")
     print("🔑 Login to access your budget tracker")
-    print("📊 All data will be stored in: E:\Budget Tracker\database\budget.db")
     print("=" * 60)
     
     port = int(os.environ.get("PORT", 5000))
