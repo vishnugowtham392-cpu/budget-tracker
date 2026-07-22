@@ -38,32 +38,24 @@ app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
 mail = Mail(app)
 
-# ================= DATABASE & FILE PATHS - AUTO DETECT =================
+# ================= DATABASE & FILE PATHS =================
 # Check if running on Render
 IS_RENDER = os.environ.get('RENDER') == 'true'
 
 if IS_RENDER:
-    # On Render - use /tmp (writable directory)
     BASE_DIR = "/tmp"
     print("🔧 Running on Render - using /tmp for storage")
 else:
-    # On Local - use your Windows path
     BASE_DIR = r"E:\Budget Tracker"
     print("🔧 Running locally - using E:\Budget Tracker")
 
-# Database file path - DIRECTLY in BASE_DIR (no subfolder on Render)
+# Database file path
 DATABASE_PATH = os.path.join(BASE_DIR, "budget.db")
 
 # Static folders
-if IS_RENDER:
-    STATIC_DIR = os.path.join(BASE_DIR, "static")
-    UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-    PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
-else:
-    # Local paths with folders
-    STATIC_DIR = os.path.join(BASE_DIR, "static")
-    UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-    PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+PROFILES_DIR = os.path.join(STATIC_DIR, "profiles")
 
 # Create all necessary directories
 for folder in [STATIC_DIR, UPLOAD_DIR, PROFILES_DIR]:
@@ -73,14 +65,11 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_DIR
 
 print(f"✅ Database Location: {DATABASE_PATH}")
 print(f"✅ Static Files: {STATIC_DIR}")
-print(f"✅ Uploads: {UPLOAD_DIR}")
-print(f"✅ Profiles: {PROFILES_DIR}")
 print(f"✅ Running on Render: {IS_RENDER}")
 
 # ================= DATABASE FUNCTIONS =================
 def get_db_connection():
     try:
-        # Ensure directory exists
         os.makedirs(os.path.dirname(DATABASE_PATH) if os.path.dirname(DATABASE_PATH) else '.', exist_ok=True)
         conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
@@ -118,21 +107,10 @@ def init_db():
         conn.close()
         print(f"✅ Database initialized successfully at: {DATABASE_PATH}")
         
-        # Verify database is writable
         test_conn = sqlite3.connect(DATABASE_PATH)
         test_conn.cursor().execute("SELECT 1")
         test_conn.close()
         print("✅ Database is writable")
-        
-        # Check if database has data
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM users")
-        user_count = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM transactions")
-        trans_count = cursor.fetchone()[0]
-        conn.close()
-        print(f"📊 Existing data: {user_count} users, {trans_count} transactions")
         
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
@@ -159,12 +137,10 @@ def handle_exception(e):
 # ================= CLEAR CACHE ROUTE =================
 @app.route('/clear-cache')
 def clear_cache():
-    """Clear all chart cache and static files"""
     if 'user' not in session:
         return redirect('/login')
     
     try:
-        # Delete all chart images
         chart_files = ['chart.png', 'monthly_chart.png', 'category_chart.png']
         deleted = []
         for file in chart_files:
@@ -180,26 +156,9 @@ def clear_cache():
     except Exception as e:
         return f"❌ Error clearing cache: {str(e)}"
 
-# ================= RESET DATABASE ROUTE =================
-@app.route('/reset-db')
-def reset_db():
-    """Reset database (for testing only)"""
-    if 'user' not in session:
-        return redirect('/login')
-    
-    try:
-        if os.path.exists(DATABASE_PATH):
-            os.remove(DATABASE_PATH)
-            print(f"✅ Database deleted: {DATABASE_PATH}")
-        init_db()
-        return "✅ Database reset successfully!"
-    except Exception as e:
-        return f"❌ Error resetting database: {str(e)}"
-
 # ================= SHOW DATABASE LOCATION =================
 @app.route('/show-db-location')
 def show_db_location():
-    """Show where database is stored"""
     if 'user' not in session:
         return redirect('/login')
     
@@ -207,21 +166,23 @@ def show_db_location():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Get all users
         cursor.execute("SELECT id, username, email, photo FROM users")
         users = cursor.fetchall()
         
-        # Get all transactions
         cursor.execute("SELECT COUNT(*) FROM transactions")
         total_transactions = cursor.fetchone()[0]
         
-        # Get current user's transactions
         cursor.execute("SELECT COUNT(*) FROM transactions WHERE username=?", (session['user'],))
         user_transactions = cursor.fetchone()[0]
         
-        # Get database file size
         db_size = os.path.getsize(DATABASE_PATH) if os.path.exists(DATABASE_PATH) else 0
         db_size_mb = db_size / (1024 * 1024)
+        
+        # Get values for display (avoid f-string backslash issues)
+        db_exists = os.path.exists(DATABASE_PATH)
+        db_path = DATABASE_PATH
+        db_size_display = f"{db_size_mb:.2f} MB"
+        is_render = IS_RENDER
         
         html = f"""
         <!DOCTYPE html>
@@ -248,7 +209,7 @@ def show_db_location():
                 <a href="/" class="back">⬅ Back to Dashboard</a>
                 <a href="/clear-cache" class="back" style="background:#ff9800;">🔄 Clear Chart Cache</a>
                 
-                <div class="db-path">📍 {DATABASE_PATH}</div>
+                <div class="db-path">📍 {db_path}</div>
                 
                 <div class="stats">
                     <div class="stat-box">
@@ -266,9 +227,9 @@ def show_db_location():
                 </div>
                 
                 <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                    <strong>📁 Running on:</strong> {'Render' if IS_RENDER else 'Local'}<br>
-                    <strong>📦 Database size:</strong> {db_size_mb:.2f} MB<br>
-                    <strong>✅ File exists:</strong> {os.path.exists(DATABASE_PATH)}
+                    <strong>📁 Running on:</strong> {'Render' if is_render else 'Local'}<br>
+                    <strong>📦 Database size:</strong> {db_size_display}<br>
+                    <strong>✅ File exists:</strong> {db_exists}
                 </div>
         """
         
@@ -297,7 +258,6 @@ def show_db_location():
 # ================= DOWNLOAD DATABASE =================
 @app.route('/download-db')
 def download_db():
-    """Download the database file"""
     if 'user' not in session:
         return redirect('/login')
     
@@ -437,7 +397,7 @@ def login():
                 conn.close()
                 
                 if user:
-                    if user[3] == password:  # password is at index 3
+                    if user[3] == password:
                         session['user'] = username
                         print(f"✅ User logged in: {username}")
                         return redirect('/')
@@ -751,7 +711,7 @@ def home():
     
     # ================= CHART GENERATION =================
     try:
-        # Delete old chart files first (force refresh)
+        # Delete old chart files first
         chart_files = ['chart.png', 'monthly_chart.png', 'category_chart.png']
         for file in chart_files:
             file_path = os.path.join(STATIC_DIR, file)
@@ -992,8 +952,6 @@ if __name__ == "__main__":
     print("=" * 60)
     print(f"📁 Database Location: {DATABASE_PATH}")
     print(f"📁 Static Files: {STATIC_DIR}")
-    print(f"📁 Uploads: {UPLOAD_DIR}")
-    print(f"📁 Profiles: {PROFILES_DIR}")
     print(f"📁 Running on Render: {IS_RENDER}")
     print("=" * 60)
     print("🌐 Server starting at: http://127.0.0.1:5000")
